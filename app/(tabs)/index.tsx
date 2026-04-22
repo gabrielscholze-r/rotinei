@@ -3,10 +3,12 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { getItem, KEYS } from '../../lib/storage';
 import { Medication, TodoList, Note, Expense } from '../../lib/types';
 import { getOverdueDoses, getNextDose, formatDateTime } from '../../lib/medications';
+import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -26,31 +28,32 @@ export default function HomeScreen() {
   const [todoLists, setTodoLists] = useState<TodoList[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [cycleDay, setCycleDay] = useState<number>(1);
 
-  useEffect(() => {
-    async function load() {
-      const [meds, todos, nts, exps] = await Promise.all([
-        getItem<Medication[]>(KEYS.MEDICATIONS),
-        getItem<TodoList[]>(KEYS.TODO_LISTS),
-        getItem<Note[]>(KEYS.NOTES),
-        getItem<Expense[]>(KEYS.EXPENSES),
-      ]);
-      setMedications(meds ?? []);
-      setTodoLists(todos ?? []);
-      setNotes(nts ?? []);
-      setExpenses(exps ?? []);
-    }
-    load();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      async function load() {
+        const [meds, todos, nts, exps, day] = await Promise.all([
+          getItem<Medication[]>(KEYS.MEDICATIONS),
+          getItem<TodoList[]>(KEYS.TODO_LISTS),
+          getItem<Note[]>(KEYS.NOTES),
+          getItem<Expense[]>(KEYS.EXPENSES),
+          getItem<number>(KEYS.BILLING_CYCLE_DAY),
+        ]);
+        setMedications(meds ?? []);
+        setTodoLists(todos ?? []);
+        setNotes(nts ?? []);
+        setExpenses(exps ?? []);
+        setCycleDay(day ?? 1);
+      }
+      load();
+    }, [])
+  );
 
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const activePeriodKey = currentPeriodKey(cycleDay);
   const monthExpenses = expenses
-    .filter((e) => {
-      const d = new Date(e.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    })
+    .filter((e) => isInPeriod(e.date, activePeriodKey, cycleDay))
     .reduce((sum, e) => sum + e.amount, 0);
 
   const overdueMeds = medications.flatMap((m) => getOverdueDoses(m));

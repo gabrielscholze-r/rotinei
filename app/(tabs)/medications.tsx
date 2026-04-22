@@ -157,9 +157,6 @@ export default function MedicationsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Remédios</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-          <Ionicons name="add" size={22} color={Colors.white} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -294,6 +291,10 @@ export default function MedicationsScreen() {
         })}
       </ScrollView>
 
+      <TouchableOpacity style={styles.fab} onPress={openAdd}>
+        <Ionicons name="add" size={28} color={Colors.white} />
+      </TouchableOpacity>
+
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -416,13 +417,21 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
-  addBtn: {
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   scroll: { padding: 20, paddingTop: 4, paddingBottom: 40 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },

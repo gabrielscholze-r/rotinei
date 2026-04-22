@@ -12,18 +12,11 @@ import {
   CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_COLORS,
 } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
+import {
+  currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
+} from '../../lib/billing';
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
-
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function monthLabel(key: string) {
-  const [year, month] = key.split('-');
-  const d = new Date(parseInt(year), parseInt(month) - 1);
-  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-}
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -46,8 +39,10 @@ const DEFAULT_FORM: AddForm = {
 export default function ExpensesScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
-  const [selectedMonth, setSelectedMonth] = useState(monthKey(new Date()));
+  const [cycleDay, setCycleDay] = useState<number>(1);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriodKey(1));
   const [viewMode, setViewMode] = useState<'list' | 'categories'>('list');
 
   useFocusEffect(
@@ -57,13 +52,26 @@ export default function ExpensesScreen() {
   );
 
   async function load() {
-    const data = await getItem<Expense[]>(KEYS.EXPENSES);
+    const [data, day] = await Promise.all([
+      getItem<Expense[]>(KEYS.EXPENSES),
+      getItem<number>(KEYS.BILLING_CYCLE_DAY),
+    ]);
+    const resolvedDay = day ?? 1;
+    setCycleDay(resolvedDay);
     setExpenses(data ?? []);
+    setSelectedPeriod(currentPeriodKey(resolvedDay));
   }
 
   async function saveExpenses(updated: Expense[]) {
     await setItem(KEYS.EXPENSES, updated);
     setExpenses(updated);
+  }
+
+  async function saveCycleDay(day: number) {
+    await setItem(KEYS.BILLING_CYCLE_DAY, day);
+    setCycleDay(day);
+    setSelectedPeriod(currentPeriodKey(day));
+    setShowSettings(false);
   }
 
   function addExpense() {
@@ -97,52 +105,47 @@ export default function ExpensesScreen() {
     ]);
   }
 
-  const allMonths = Array.from(new Set(expenses.map((e) => monthKey(new Date(e.date))))).sort().reverse();
-  if (!allMonths.includes(selectedMonth)) {
-    allMonths.unshift(selectedMonth);
-  }
-
-  const monthExpenses = expenses.filter((e) => monthKey(new Date(e.date)) === selectedMonth);
-  const total = monthExpenses.reduce((s, e) => s + e.amount, 0);
+  const periodExpenses = expenses.filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
+  const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const byCategory = CATEGORIES.map((cat) => {
-    const items = monthExpenses.filter((e) => e.category === cat);
+    const items = periodExpenses.filter((e) => e.category === cat);
     return { cat, total: items.reduce((s, e) => s + e.amount, 0), count: items.length };
   }).filter((c) => c.count > 0).sort((a, b) => b.total - a.total);
 
-  function prevMonth() {
-    const idx = allMonths.indexOf(selectedMonth);
-    if (idx < allMonths.length - 1) setSelectedMonth(allMonths[idx + 1]);
+  const isCurrentPeriod = selectedPeriod === currentPeriodKey(cycleDay);
+
+  function goToPrev() {
+    setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay));
   }
 
-  function nextMonth() {
-    const idx = allMonths.indexOf(selectedMonth);
-    if (idx > 0) setSelectedMonth(allMonths[idx - 1]);
+  function goToNext() {
+    setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay));
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Gastos</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Ionicons name="add" size={22} color={Colors.white} />
+        <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
+          <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={prevMonth} hitSlop={8}>
+        <TouchableOpacity onPress={goToPrev} hitSlop={8}>
           <Ionicons name="chevron-back" size={22} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.monthLabel}>{monthLabel(selectedMonth)}</Text>
-        <TouchableOpacity onPress={nextMonth} hitSlop={8}>
-          <Ionicons name="chevron-forward" size={22} color={Colors.primary} />
+        <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
+        <TouchableOpacity onPress={goToNext} hitSlop={8} disabled={isCurrentPeriod}>
+          <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total do mês</Text>
+        <Text style={styles.totalLabel}>Total do período</Text>
         <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
-        <Text style={styles.totalCount}>{monthExpenses.length} lançamentos</Text>
+        <Text style={styles.totalCount}>{periodExpenses.length} lançamentos</Text>
       </View>
 
       <View style={styles.tabs}>
@@ -161,7 +164,7 @@ export default function ExpensesScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {monthExpenses.length === 0 && (
+        {periodExpenses.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="wallet-outline" size={56} color={Colors.textTertiary} />
             <Text style={styles.emptyTitle}>Nenhum gasto</Text>
@@ -170,7 +173,7 @@ export default function ExpensesScreen() {
         )}
 
         {viewMode === 'list' &&
-          monthExpenses
+          periodExpenses
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .map((expense) => (
               <View key={expense.id} style={styles.expenseRow}>
@@ -219,6 +222,10 @@ export default function ExpensesScreen() {
           </>
         )}
       </ScrollView>
+
+      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={28} color={Colors.white} />
+      </TouchableOpacity>
 
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
@@ -288,6 +295,36 @@ export default function ExpensesScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Ciclo de cobrança</Text>
+            <TouchableOpacity onPress={() => setShowSettings(false)}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Dia de início do ciclo</Text>
+            <Text style={styles.settingsHint}>
+              Dia 1 usa o mês calendário. Outro dia cria um período personalizado (ex: dia 6 = "6 abr – 5 mai").
+            </Text>
+            <View style={styles.dayGrid}>
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                <TouchableOpacity
+                  key={day}
+                  style={[styles.dayBtn, cycleDay === day && styles.dayBtnActive]}
+                  onPress={() => saveCycleDay(day)}
+                >
+                  <Text style={[styles.dayBtnText, cycleDay === day && styles.dayBtnTextActive]}>
+                    {day}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -303,13 +340,29 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
-  addBtn: {
-    backgroundColor: Colors.primary,
+  settingsBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.borderLight,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   monthNav: {
     flexDirection: 'row',
@@ -440,4 +493,19 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  settingsHint: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16, lineHeight: 18 },
+  dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dayBtn: {
+    width: 56,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  dayBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dayBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
+  dayBtnTextActive: { color: '#fff' },
 });

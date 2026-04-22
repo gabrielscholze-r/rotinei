@@ -87,9 +87,6 @@ export default function NotesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Notas</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Ionicons name="add" size={22} color={Colors.white} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.searchBar}>
@@ -145,6 +142,10 @@ export default function NotesScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+        <Ionicons name="add" size={28} color={Colors.white} />
+      </TouchableOpacity>
 
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
@@ -207,13 +208,21 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
-  addBtn: {
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   searchBar: {
     flexDirection: 'row',

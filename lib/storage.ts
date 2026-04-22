@@ -18,4 +18,5 @@ export const KEYS = {
   TODO_LISTS: 'todo_lists',
   NOTES: 'notes',
   EXPENSES: 'expenses',
+  BILLING_CYCLE_DAY: 'billing_cycle_day',
 };
