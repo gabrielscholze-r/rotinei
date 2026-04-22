@@ -52,11 +52,18 @@ export type ExpenseCategory =
   | 'education'
   | 'other';
 
+export interface CustomCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+}
+
 export interface Expense {
   id: string;
   description: string;
   amount: number;
-  category: ExpenseCategory;
+  category: string;
   date: string; // ISO
   createdAt: string;
 }

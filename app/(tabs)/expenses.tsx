@@ -1,14 +1,15 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, TextInput, Alert,
+  Modal, TextInput, Alert, Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
-  Expense, ExpenseCategory,
+  Expense, ExpenseCategory, CustomCategory,
   CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_COLORS,
 } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,34 +17,92 @@ import {
   currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
 } from '../../lib/billing';
 
-const CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
+const BUILT_IN_CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
+
+const EMOJI_LIST = [
+  '🍕','🍔','🍜','🍣','🍱','☕','🧃','🥤','🍺','🥩',
+  '🥗','🍰','🍦','🌮','🥐','🛒','🛍️','🧴','💊','🏥',
+  '💉','🩺','🏋️','🧘','🚗','🚌','🚇','✈️','🛵','🚲',
+  '⛽','🅿️','🎬','🎮','🎵','📺','🎭','🎲','⚽','🏀',
+  '🏠','💡','🔧','🛋️','🧹','📦','👕','👟','👜','💄',
+  '📚','🖊️','🎓','💻','📱','💰','💳','💸','🏦','📊',
+  '🎁','🔑','🐾','🌿','🌎','🚿','🛁','🪴','🧸','🎀',
+];
+
+const CUSTOM_COLORS = [
+  '#F97316','#EF4444','#EC4899','#8B5CF6',
+  '#3B82F6','#14B8A6','#10B981','#F59E0B',
+  '#6B7280','#0EA5E9',
+];
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function formatAmountInput(text: string): string {
+  const digits = text.replace(/\D/g, '');
+  if (!digits) return '';
+  const number = parseInt(digits, 10);
+  return (number / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const MONTH_ABBRS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00Z');
+  const day = d.getUTCDate().toString().padStart(2, '0');
+  const month = MONTH_ABBRS[d.getUTCMonth()];
+  const year = d.getUTCFullYear().toString().slice(-2);
+  return `${day}/${month} ${year}`;
+}
+
+function formatDateInput(d: Date): string {
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
 interface AddForm {
   description: string;
   amount: string;
-  category: ExpenseCategory;
-  date: string;
+  category: string;
+  date: Date;
 }
 
 const DEFAULT_FORM: AddForm = {
   description: '',
   amount: '',
   category: 'food',
-  date: new Date().toISOString().split('T')[0],
+  date: new Date(),
+};
+
+interface NewCatForm {
+  name: string;
+  emoji: string;
+  color: string;
+}
+
+const DEFAULT_NEW_CAT: NewCatForm = {
+  name: '',
+  emoji: '🏷️',
+  color: CUSTOM_COLORS[0],
 };
 
 export default function ExpensesScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
+  const [newCatForm, setNewCatForm] = useState<NewCatForm>(DEFAULT_NEW_CAT);
   const [cycleDay, setCycleDay] = useState<number>(1);
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriodKey(1));
   const [viewMode, setViewMode] = useState<'list' | 'categories'>('list');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,13 +111,15 @@ export default function ExpensesScreen() {
   );
 
   async function load() {
-    const [data, day] = await Promise.all([
+    const [data, day, cats] = await Promise.all([
       getItem<Expense[]>(KEYS.EXPENSES),
       getItem<number>(KEYS.BILLING_CYCLE_DAY),
+      getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
     ]);
     const resolvedDay = day ?? 1;
     setCycleDay(resolvedDay);
     setExpenses(data ?? []);
+    setCustomCategories(cats ?? []);
     setSelectedPeriod(currentPeriodKey(resolvedDay));
   }
 
@@ -74,8 +135,42 @@ export default function ExpensesScreen() {
     setShowSettings(false);
   }
 
+  async function createCategory() {
+    if (!newCatForm.name.trim()) {
+      Alert.alert('Erro', 'Informe um nome para a categoria.');
+      return;
+    }
+    const newCat: CustomCategory = {
+      id: `custom_${Date.now()}`,
+      name: newCatForm.name.trim(),
+      emoji: newCatForm.emoji,
+      color: newCatForm.color,
+    };
+    const updated = [...customCategories, newCat];
+    await setItem(KEYS.CUSTOM_CATEGORIES, updated);
+    setCustomCategories(updated);
+    setForm({ ...form, category: newCat.id });
+    setNewCatForm(DEFAULT_NEW_CAT);
+    setShowNewCategory(false);
+  }
+
+  function getCategoryIcon(cat: string): string {
+    if (cat in CATEGORY_ICONS) return CATEGORY_ICONS[cat as ExpenseCategory];
+    return customCategories.find((c) => c.id === cat)?.emoji ?? '🏷️';
+  }
+
+  function getCategoryLabel(cat: string): string {
+    if (cat in CATEGORY_LABELS) return CATEGORY_LABELS[cat as ExpenseCategory];
+    return customCategories.find((c) => c.id === cat)?.name ?? cat;
+  }
+
+  function getCategoryColor(cat: string): string {
+    if (cat in CATEGORY_COLORS) return CATEGORY_COLORS[cat as ExpenseCategory];
+    return customCategories.find((c) => c.id === cat)?.color ?? '#6B7280';
+  }
+
   function addExpense() {
-    const amount = parseFloat(form.amount.replace(',', '.'));
+    const amount = parseFloat(form.amount.replace(/\./g, '').replace(',', '.'));
     if (!form.description.trim()) {
       Alert.alert('Erro', 'Informe uma descrição.');
       return;
@@ -89,12 +184,12 @@ export default function ExpensesScreen() {
       description: form.description.trim(),
       amount,
       category: form.category,
-      date: new Date(form.date + 'T12:00:00').toISOString(),
+      date: new Date(Date.UTC(form.date.getFullYear(), form.date.getMonth(), form.date.getDate(), 12, 0, 0)).toISOString(),
       createdAt: new Date().toISOString(),
     };
     const updated = [expense, ...expenses];
     saveExpenses(updated);
-    setForm({ ...DEFAULT_FORM, date: new Date().toISOString().split('T')[0] });
+    setForm({ ...DEFAULT_FORM, date: new Date() });
     setShowAdd(false);
   }
 
@@ -108,7 +203,12 @@ export default function ExpensesScreen() {
   const periodExpenses = expenses.filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
-  const byCategory = CATEGORIES.map((cat) => {
+  const allCategoryKeys = [
+    ...BUILT_IN_CATEGORIES,
+    ...customCategories.map((c) => c.id),
+  ];
+
+  const byCategory = allCategoryKeys.map((cat) => {
     const items = periodExpenses.filter((e) => e.category === cat);
     return { cat, total: items.reduce((s, e) => s + e.amount, 0), count: items.length };
   }).filter((c) => c.count > 0).sort((a, b) => b.total - a.total);
@@ -124,7 +224,7 @@ export default function ExpensesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Gastos</Text>
         <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
@@ -177,13 +277,13 @@ export default function ExpensesScreen() {
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .map((expense) => (
               <View key={expense.id} style={styles.expenseRow}>
-                <View style={[styles.expenseIcon, { backgroundColor: CATEGORY_COLORS[expense.category] + '20' }]}>
-                  <Text style={{ fontSize: 20 }}>{CATEGORY_ICONS[expense.category]}</Text>
+                <View style={[styles.expenseIcon, { backgroundColor: getCategoryColor(expense.category) + '20' }]}>
+                  <Text style={{ fontSize: 20 }}>{getCategoryIcon(expense.category)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.expenseDesc}>{expense.description}</Text>
                   <Text style={styles.expenseCat}>
-                    {CATEGORY_LABELS[expense.category]} · {new Date(expense.date).toLocaleDateString('pt-BR')}
+                    {getCategoryLabel(expense.category)} · {formatDate(expense.date)}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -201,19 +301,19 @@ export default function ExpensesScreen() {
               const pct = total > 0 ? catTotal / total : 0;
               return (
                 <View key={cat} style={styles.categoryRow}>
-                  <View style={[styles.categoryIcon, { backgroundColor: CATEGORY_COLORS[cat] + '20' }]}>
-                    <Text style={{ fontSize: 20 }}>{CATEGORY_ICONS[cat]}</Text>
+                  <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(cat) + '20' }]}>
+                    <Text style={{ fontSize: 20 }}>{getCategoryIcon(cat)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={styles.categoryHeader}>
-                      <Text style={styles.categoryName}>{CATEGORY_LABELS[cat]}</Text>
-                      <Text style={[styles.categoryValue, { color: CATEGORY_COLORS[cat] }]}>
+                      <Text style={styles.categoryName}>{getCategoryLabel(cat)}</Text>
+                      <Text style={[styles.categoryValue, { color: getCategoryColor(cat) }]}>
                         {formatCurrency(catTotal)}
                       </Text>
                     </View>
                     <Text style={styles.categorySub}>{count} lançamentos · {(pct * 100).toFixed(0)}%</Text>
                     <View style={styles.catBar}>
-                      <View style={[styles.catBarFill, { width: `${pct * 100}%`, backgroundColor: CATEGORY_COLORS[cat] }]} />
+                      <View style={[styles.catBarFill, { width: `${pct * 100}%`, backgroundColor: getCategoryColor(cat) }]} />
                     </View>
                   </View>
                 </View>
@@ -227,6 +327,7 @@ export default function ExpensesScreen() {
         <Ionicons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
 
+      {/* Modal: Novo gasto */}
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -250,23 +351,30 @@ export default function ExpensesScreen() {
               style={styles.input}
               placeholder="0,00"
               placeholderTextColor={Colors.textTertiary}
-              keyboardType="decimal-pad"
+              keyboardType="numeric"
               value={form.amount}
-              onChangeText={(v) => setForm({ ...form, amount: v })}
+              onChangeText={(v) => setForm({ ...form, amount: formatAmountInput(v) })}
             />
 
             <Text style={styles.label}>Data</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor={Colors.textTertiary}
-              value={form.date}
-              onChangeText={(v) => setForm({ ...form, date: v })}
-            />
+            <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
+              <Text style={{ color: Colors.text, fontSize: 16 }}>{formatDateInput(form.date)}</Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={form.date}
+                mode="date"
+                display="default"
+                onChange={(_, selected) => {
+                  setShowDatePicker(Platform.OS === 'ios');
+                  if (selected) setForm({ ...form, date: selected });
+                }}
+              />
+            )}
 
             <Text style={styles.label}>Categoria</Text>
             <View style={styles.categoryGrid}>
-              {CATEGORIES.map((cat) => (
+              {BUILT_IN_CATEGORIES.map((cat) => (
                 <TouchableOpacity
                   key={cat}
                   style={[
@@ -287,6 +395,36 @@ export default function ExpensesScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
+
+              {customCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.catBtn,
+                    form.category === cat.id && {
+                      backgroundColor: cat.color,
+                      borderColor: cat.color,
+                    },
+                  ]}
+                  onPress={() => setForm({ ...form, category: cat.id })}
+                >
+                  <Text style={{ fontSize: 18 }}>{cat.emoji}</Text>
+                  <Text style={[
+                    styles.catBtnText,
+                    form.category === cat.id && { color: '#fff' },
+                  ]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={styles.catBtnNew}
+                onPress={() => setShowNewCategory(true)}
+              >
+                <Ionicons name="add" size={18} color={Colors.primary} />
+                <Text style={styles.catBtnNewText}>Nova</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.saveBtn} onPress={addExpense}>
@@ -296,6 +434,74 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* Modal: Nova categoria */}
+      <Modal visible={showNewCategory} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Nova categoria</Text>
+            <TouchableOpacity onPress={() => setShowNewCategory(false)}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Nome *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Pets, Academia..."
+              placeholderTextColor={Colors.textTertiary}
+              value={newCatForm.name}
+              onChangeText={(v) => setNewCatForm({ ...newCatForm, name: v })}
+            />
+
+            <Text style={styles.label}>Emoji</Text>
+            <View style={styles.emojiPreviewRow}>
+              <View style={[styles.emojiPreviewCircle, { backgroundColor: newCatForm.color + '30' }]}>
+                <Text style={styles.emojiPreviewText}>{newCatForm.emoji}</Text>
+              </View>
+              <Text style={styles.emojiPreviewName}>{newCatForm.name || 'Nova categoria'}</Text>
+            </View>
+            <View style={styles.emojiGrid}>
+              {EMOJI_LIST.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={[
+                    styles.emojiBtn,
+                    newCatForm.emoji === emoji && { backgroundColor: newCatForm.color + '30', borderColor: newCatForm.color },
+                  ]}
+                  onPress={() => setNewCatForm({ ...newCatForm, emoji })}
+                >
+                  <Text style={styles.emojiBtnText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Cor</Text>
+            <View style={styles.colorRow}>
+              {CUSTOM_COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorBtn,
+                    { backgroundColor: color },
+                    newCatForm.color === color && styles.colorBtnActive,
+                  ]}
+                  onPress={() => setNewCatForm({ ...newCatForm, color })}
+                >
+                  {newCatForm.color === color && (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={createCategory}>
+              <Text style={styles.saveBtnText}>Criar categoria</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal: Configurações */}
       <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -484,6 +690,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
   },
   catBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  catBtnNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLighter,
+  },
+  catBtnNewText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   saveBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 14,
@@ -508,4 +726,58 @@ const styles = StyleSheet.create({
   dayBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   dayBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
   dayBtnTextActive: { color: '#fff' },
+  // Nova categoria
+  emojiPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emojiPreviewCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiPreviewText: { fontSize: 26 },
+  emojiPreviewName: { fontSize: 16, fontWeight: '700', color: Colors.text, flex: 1 },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  emojiBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  emojiBtnText: { fontSize: 22 },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  colorBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorBtnActive: {
+    borderWidth: 3,
+    borderColor: Colors.text,
+  },
 });

@@ -19,4 +19,5 @@ export const KEYS = {
   NOTES: 'notes',
   EXPENSES: 'expenses',
   BILLING_CYCLE_DAY: 'billing_cycle_day',
+  CUSTOM_CATEGORIES: 'custom_categories',
 };
