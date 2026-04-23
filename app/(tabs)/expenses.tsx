@@ -147,6 +147,9 @@ export default function ExpensesScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriodKey(1));
   const [viewMode, setViewMode] = useState<'list' | 'categories'>('list');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   // Goals state
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -346,6 +349,17 @@ export default function ExpensesScreen() {
     return { cat, total: items.reduce((s, e) => s + e.amount, 0), count: items.length };
   }).filter((c) => c.count > 0).sort((a, b) => b.total - a.total);
 
+  const filteredExpenses = categoryFilter
+    ? periodExpenses.filter((e) => e.category === categoryFilter)
+    : periodExpenses;
+
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    const diff = sortBy === 'date'
+      ? new Date(b.date).getTime() - new Date(a.date).getTime()
+      : b.amount - a.amount;
+    return sortOrder === 'desc' ? diff : -diff;
+  });
+
   const isCurrentPeriod = selectedPeriod === currentPeriodKey(cycleDay);
 
   const totalGoalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
@@ -382,11 +396,11 @@ export default function ExpensesScreen() {
       {mainTab === 'gastos' ? (
         <>
           <View style={styles.monthNav}>
-            <TouchableOpacity onPress={() => setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay))} hitSlop={8}>
+            <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
               <Ionicons name="chevron-back" size={22} color={Colors.primary} />
             </TouchableOpacity>
             <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
-            <TouchableOpacity onPress={() => setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay))} hitSlop={8} disabled={isCurrentPeriod}>
+            <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
               <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
             </TouchableOpacity>
           </View>
@@ -406,14 +420,59 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, viewMode === 'categories' && styles.tabActive]}
-              onPress={() => setViewMode('categories')}
+              onPress={() => { setViewMode('categories'); setCategoryFilter(null); }}
             >
               <Text style={[styles.tabText, viewMode === 'categories' && styles.tabTextActive]}>Categorias</Text>
             </TouchableOpacity>
           </View>
 
+          {viewMode === 'list' && (
+            <View style={styles.sortRow}>
+              <TouchableOpacity
+                style={[styles.sortBtn, sortBy === 'date' && styles.sortBtnActive]}
+                onPress={() => {
+                  if (sortBy === 'date') setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                  else { setSortBy('date'); setSortOrder('desc'); }
+                }}
+              >
+                <Text style={[styles.sortBtnText, sortBy === 'date' && styles.sortBtnTextActive]}>Data</Text>
+                {sortBy === 'date' && (
+                  <Ionicons name={sortOrder === 'desc' ? 'arrow-down' : 'arrow-up'} size={12} color={Colors.primary} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sortBtn, sortBy === 'amount' && styles.sortBtnActive]}
+                onPress={() => {
+                  if (sortBy === 'amount') setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
+                  else { setSortBy('amount'); setSortOrder('desc'); }
+                }}
+              >
+                <Text style={[styles.sortBtnText, sortBy === 'amount' && styles.sortBtnTextActive]}>Valor</Text>
+                {sortBy === 'amount' && (
+                  <Ionicons name={sortOrder === 'desc' ? 'arrow-down' : 'arrow-up'} size={12} color={Colors.primary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-            {periodExpenses.length === 0 && (
+            {viewMode === 'list' && categoryFilter && (
+              <TouchableOpacity style={styles.filterChip} onPress={() => setCategoryFilter(null)}>
+                <Text style={styles.filterChipText}>
+                  {getCategoryIcon(categoryFilter)} {getCategoryLabel(categoryFilter)}
+                </Text>
+                <Ionicons name="close-circle" size={16} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+
+            {viewMode === 'list' && filteredExpenses.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="wallet-outline" size={56} color={Colors.textTertiary} />
+                <Text style={styles.emptyTitle}>Nenhum gasto</Text>
+                <Text style={styles.emptySub}>{categoryFilter ? 'Sem gastos nesta categoria' : 'Toque em + para registrar'}</Text>
+              </View>
+            )}
+            {viewMode === 'categories' && byCategory.length === 0 && (
               <View style={styles.empty}>
                 <Ionicons name="wallet-outline" size={56} color={Colors.textTertiary} />
                 <Text style={styles.emptyTitle}>Nenhum gasto</Text>
@@ -422,9 +481,7 @@ export default function ExpensesScreen() {
             )}
 
             {viewMode === 'list' &&
-              periodExpenses
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .map((expense) => (
+              sortedExpenses.map((expense) => (
                   <View key={expense.id} style={styles.expenseRow}>
                     <View style={[styles.expenseIcon, { backgroundColor: getCategoryColor(expense.category) + '20' }]}>
                       <Text style={{ fontSize: 20 }}>{getCategoryIcon(expense.category)}</Text>
@@ -447,21 +504,29 @@ export default function ExpensesScreen() {
             {viewMode === 'categories' && byCategory.map(({ cat, total: catTotal, count }) => {
               const pct = total > 0 ? catTotal / total : 0;
               return (
-                <View key={cat} style={styles.categoryRow}>
+                <TouchableOpacity
+                  key={cat}
+                  style={styles.categoryRow}
+                  onPress={() => { setCategoryFilter(cat); setViewMode('list'); }}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.categoryIcon, { backgroundColor: getCategoryColor(cat) + '20' }]}>
                     <Text style={{ fontSize: 20 }}>{getCategoryIcon(cat)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={styles.categoryHeader}>
                       <Text style={styles.categoryName}>{getCategoryLabel(cat)}</Text>
-                      <Text style={[styles.categoryValue, { color: getCategoryColor(cat) }]}>{formatCurrency(catTotal)}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.categoryValue, { color: getCategoryColor(cat) }]}>{formatCurrency(catTotal)}</Text>
+                        <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary} />
+                      </View>
                     </View>
                     <Text style={styles.categorySub}>{count} lançamentos · {(pct * 100).toFixed(0)}%</Text>
                     <View style={styles.catBar}>
                       <View style={[styles.catBarFill, { width: `${pct * 100}%`, backgroundColor: getCategoryColor(cat) }]} />
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -1047,6 +1112,43 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   catBarFill: { height: '100%', borderRadius: 2 },
+  sortRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 8,
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  sortBtnActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLighter,
+  },
+  sortBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  sortBtnTextActive: { color: Colors.primary },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primaryLighter,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
   // Goals
   goalsSummaryCard: {
     backgroundColor: Colors.primary,
