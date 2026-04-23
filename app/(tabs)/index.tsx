@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { getItem, KEYS } from '../../lib/storage';
-import { Routine, RoutineLog, TodoList, Note, Expense } from '../../lib/types';
+import { Routine, RoutineLog, TodoList, Note, Expense, Goal } from '../../lib/types';
 import { isRoutineForToday, isRoutineCompletedToday, formatRoutineDays } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 
@@ -30,17 +30,19 @@ export default function HomeScreen() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cycleDay, setCycleDay] = useState<number>(1);
+  const [goals, setGoals] = useState<Goal[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [rts, logs, todos, nts, exps, day] = await Promise.all([
+        const [rts, logs, todos, nts, exps, day, gls] = await Promise.all([
           getItem<Routine[]>(KEYS.ROUTINES),
           getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
           getItem<TodoList[]>(KEYS.TODO_LISTS),
           getItem<Note[]>(KEYS.NOTES),
           getItem<Expense[]>(KEYS.EXPENSES),
           getItem<number>(KEYS.BILLING_CYCLE_DAY),
+          getItem<Goal[]>(KEYS.GOALS),
         ]);
         setRoutines(rts ?? []);
         setRoutineLogs(logs ?? []);
@@ -48,6 +50,7 @@ export default function HomeScreen() {
         setNotes(nts ?? []);
         setExpenses(exps ?? []);
         setCycleDay(day ?? 1);
+        setGoals(gls ?? []);
       }
       load();
     }, [])
@@ -67,6 +70,25 @@ export default function HomeScreen() {
   const todayRoutines = routines.filter(isRoutineForToday);
   const pendingRoutines = todayRoutines.filter((r) => !isRoutineCompletedToday(r.id, routineLogs));
   const sortedPendingRoutines = [...pendingRoutines].sort((a, b) => a.time.localeCompare(b.time));
+
+  const activeGoals = goals.filter((g) => g.currentAmount < g.targetAmount);
+  const totalGoalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);
+  const goalsNearDeadline = activeGoals.filter((g) => {
+    if (!g.deadline) return false;
+    const diff = Math.ceil((new Date(g.deadline + 'T00:00:00').getTime() - now.getTime()) / 86400000);
+    return diff >= 0 && diff <= 7;
+  });
+  const goalsNearCompletion = activeGoals.filter(
+    (g) => g.targetAmount > 0 && g.currentAmount / g.targetAmount >= 0.8
+  );
+  const priorityIds = new Set([
+    ...goalsNearDeadline.map((g) => g.id),
+    ...goalsNearCompletion.map((g) => g.id),
+  ]);
+  const featuredGoals = [
+    ...activeGoals.filter((g) => priorityIds.has(g.id)),
+    ...activeGoals.filter((g) => !priorityIds.has(g.id)),
+  ].slice(0, 3);
 
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
@@ -169,6 +191,11 @@ export default function HomeScreen() {
               </Text>
               <Text style={styles.gridLabel}>{card.label}</Text>
               <Text style={styles.gridSub}>{card.subtitle}</Text>
+              {card.label === 'Gastos' && totalGoalSaved > 0 && (
+                <Text style={styles.gridSub}>
+                  {`R$ ${totalGoalSaved.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} em metas`}
+                </Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -193,6 +220,56 @@ export default function HomeScreen() {
                     <Text style={styles.listPreviewSub}>{done}/{total} concluídos</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
+
+        {featuredGoals.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Metas em destaque</Text>
+            {featuredGoals.map((goal) => {
+              const progress =
+                goal.targetAmount > 0
+                  ? Math.min(goal.currentAmount / goal.targetAmount, 1)
+                  : 0;
+              const remaining = goal.deadline
+                ? Math.ceil(
+                    (new Date(goal.deadline + 'T00:00:00').getTime() - now.getTime()) / 86400000
+                  )
+                : null;
+              return (
+                <TouchableOpacity
+                  key={goal.id}
+                  style={styles.goalPreview}
+                  onPress={() => router.push('/(tabs)/expenses' as any)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.goalPreviewHeader}>
+                    <View style={[styles.goalPreviewIcon, { backgroundColor: goal.color + '20' }]}>
+                      <Text style={{ fontSize: 20 }}>{goal.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.goalPreviewName} numberOfLines={1}>{goal.name}</Text>
+                      <Text style={styles.goalPreviewAmounts}>
+                        {`R$ ${goal.currentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / R$ ${goal.targetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      </Text>
+                    </View>
+                    {remaining !== null && (
+                      <Text style={[styles.goalPreviewDeadline, remaining < 0 && { color: Colors.danger }]}>
+                        {remaining < 0 ? 'Prazo vencido' : remaining === 0 ? 'Vence hoje' : `${remaining}d`}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.goalPreviewTrack}>
+                    <View
+                      style={[
+                        styles.goalPreviewFill,
+                        { width: `${Math.round(progress * 100)}%` as any, backgroundColor: goal.color },
+                      ]}
+                    />
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -302,4 +379,31 @@ const styles = StyleSheet.create({
   },
   listPreviewTitle: { fontSize: 15, fontWeight: '600', color: Colors.text },
   listPreviewSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  goalPreview: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  goalPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  goalPreviewIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalPreviewName: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  goalPreviewAmounts: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  goalPreviewDeadline: { fontSize: 12, fontWeight: '600', color: Colors.warning },
+  goalPreviewTrack: {
+    height: 5,
+    backgroundColor: Colors.borderLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  goalPreviewFill: { height: '100%', borderRadius: 3 },
 });
