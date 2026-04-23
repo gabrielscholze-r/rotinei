@@ -17,6 +17,53 @@ export interface Medication {
   createdAt: string;
 }
 
+export interface Routine {
+  id: string;
+  name: string;
+  icon: string;
+  description?: string;
+  time: string; // "HH:MM"
+  days: number[]; // [] = every day; 0=Sun..6=Sat
+  color: string;
+  active: boolean;
+  notificationIds: string[];
+  createdAt: string;
+}
+
+export interface RoutineLog {
+  id: string;
+  routineId: string;
+  date: string; // "YYYY-MM-DD"
+  completedAt: string; // ISO
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  emoji: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline?: string; // "YYYY-MM-DD"
+  color: string;
+  transactions: GoalTransaction[];
+  createdAt: string;
+}
+
+export interface GoalTransaction {
+  id: string;
+  amount: number; // positive = deposit, negative = withdrawal
+  note?: string;
+  date: string; // ISO
+}
+
+export interface PrivateNote {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TodoItem {
   id: string;
   text: string;

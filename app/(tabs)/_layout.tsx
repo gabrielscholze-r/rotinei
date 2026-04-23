@@ -45,11 +45,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="medications"
+        name="routines"
         options={{
-          title: 'Remédios',
+          title: 'Rotinas',
           tabBarIcon: ({ color, size }) => (
-            <TabIcon name="medical" color={color} size={size} />
+            <TabIcon name="alarm" color={color} size={size} />
           ),
         }}
       />

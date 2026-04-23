@@ -6,8 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { getItem, KEYS } from '../../lib/storage';
-import { Medication, TodoList, Note, Expense } from '../../lib/types';
-import { getOverdueDoses, getNextDose, formatDateTime } from '../../lib/medications';
+import { Routine, RoutineLog, TodoList, Note, Expense } from '../../lib/types';
+import { isRoutineForToday, isRoutineCompletedToday, formatRoutineDays } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -24,7 +24,8 @@ interface QuickCard {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [medications, setMedications] = useState<Medication[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
   const [todoLists, setTodoLists] = useState<TodoList[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -33,14 +34,16 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [meds, todos, nts, exps, day] = await Promise.all([
-          getItem<Medication[]>(KEYS.MEDICATIONS),
+        const [rts, logs, todos, nts, exps, day] = await Promise.all([
+          getItem<Routine[]>(KEYS.ROUTINES),
+          getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
           getItem<TodoList[]>(KEYS.TODO_LISTS),
           getItem<Note[]>(KEYS.NOTES),
           getItem<Expense[]>(KEYS.EXPENSES),
           getItem<number>(KEYS.BILLING_CYCLE_DAY),
         ]);
-        setMedications(meds ?? []);
+        setRoutines(rts ?? []);
+        setRoutineLogs(logs ?? []);
         setTodoLists(todos ?? []);
         setNotes(nts ?? []);
         setExpenses(exps ?? []);
@@ -56,22 +59,17 @@ export default function HomeScreen() {
     .filter((e) => isInPeriod(e.date, activePeriodKey, cycleDay))
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const overdueMeds = medications.flatMap((m) => getOverdueDoses(m));
   const pendingTodos = todoLists.reduce(
     (sum, l) => sum + l.items.filter((i) => !i.done).length,
     0
   );
 
-  const activeMeds = medications.filter(
-    (m) => m.doses.some((d) => !d.takenAt && !d.skipped)
-  );
-
-  const nextDoseMed = activeMeds.length > 0 ? activeMeds[0] : null;
-  const nextDose = nextDoseMed ? getNextDose(nextDoseMed) : null;
+  const todayRoutines = routines.filter(isRoutineForToday);
+  const pendingRoutines = todayRoutines.filter((r) => !isRoutineCompletedToday(r.id, routineLogs));
+  const sortedPendingRoutines = [...pendingRoutines].sort((a, b) => a.time.localeCompare(b.time));
 
   const hour = now.getHours();
-  const greeting =
-    hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -89,30 +87,31 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {overdueMeds.length > 0 && (
+        {/* Today's pending routines card */}
+        {pendingRoutines.length > 0 && (
           <TouchableOpacity
-            style={styles.alertCard}
-            onPress={() => router.push('/(tabs)/medications')}
+            style={styles.routinesCard}
+            onPress={() => router.push('/(tabs)/routines')}
+            activeOpacity={0.85}
           >
-            <Ionicons name="alert-circle" size={20} color={Colors.danger} />
-            <Text style={styles.alertText}>
-              {overdueMeds.length} dose{overdueMeds.length > 1 ? 's' : ''} em atraso
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.danger} />
+            <View style={styles.routinesCardHeader}>
+              <Text style={styles.routinesCardTitle}>Rotinas de hoje</Text>
+              <View style={styles.routinesCardBadge}>
+                <Text style={styles.routinesCardBadgeText}>{pendingRoutines.length} pendentes</Text>
+              </View>
+            </View>
+            {sortedPendingRoutines.slice(0, 3).map((r) => (
+              <View key={r.id} style={styles.routineRow}>
+                <View style={[styles.routineDot, { backgroundColor: r.color }]} />
+                <Text style={styles.routineEmoji}>{r.icon}</Text>
+                <Text style={styles.routineName} numberOfLines={1}>{r.name}</Text>
+                <Text style={styles.routineTime}>{r.time}</Text>
+              </View>
+            ))}
+            {pendingRoutines.length > 3 && (
+              <Text style={styles.routinesMore}>+{pendingRoutines.length - 3} mais</Text>
+            )}
           </TouchableOpacity>
-        )}
-
-        {nextDoseMed && nextDose && (
-          <View style={styles.nextDoseCard}>
-            <View style={styles.nextDoseLeft}>
-              <Text style={styles.nextDoseLabel}>Próxima dose</Text>
-              <Text style={styles.nextDoseName}>{nextDoseMed.name}</Text>
-              <Text style={styles.nextDoseTime}>{formatDateTime(nextDose.scheduledAt)}</Text>
-            </View>
-            <View style={[styles.nextDoseIcon, { backgroundColor: nextDoseMed.color }]}>
-              <Ionicons name="medical" size={24} color="#fff" />
-            </View>
-          </View>
         )}
 
         <Text style={styles.sectionTitle}>Atalhos</Text>
@@ -120,13 +119,13 @@ export default function HomeScreen() {
         <View style={styles.grid}>
           {([
             {
-              label: 'Remédios',
-              icon: 'medical' as IoniconName,
+              label: 'Rotinas',
+              icon: 'alarm' as IoniconName,
               color: Colors.primary,
               bg: Colors.primaryLighter,
-              route: '/(tabs)/medications',
-              count: activeMeds.length,
-              subtitle: 'ativos',
+              route: '/(tabs)/routines',
+              count: todayRoutines.length - pendingRoutines.length,
+              subtitle: pendingRoutines.length > 0 ? `${pendingRoutines.length} pendentes` : 'tudo feito hoje',
             },
             {
               label: 'Listas',
@@ -191,9 +190,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.listPreviewTitle}>{list.title}</Text>
-                    <Text style={styles.listPreviewSub}>
-                      {done}/{total} concluídos
-                    </Text>
+                    <Text style={styles.listPreviewSub}>{done}/{total} concluídos</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
                 </TouchableOpacity>
@@ -217,23 +214,11 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 26, fontWeight: '700', color: Colors.text },
   date: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dangerLight,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    gap: 8,
-  },
-  alertText: { flex: 1, color: Colors.danger, fontWeight: '600', fontSize: 14 },
-  nextDoseCard: {
+  routinesCard: {
     backgroundColor: Colors.card,
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.primaryLight,
     shadowColor: Colors.primary,
@@ -242,17 +227,31 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  nextDoseLeft: { flex: 1 },
-  nextDoseLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  nextDoseName: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 2 },
-  nextDoseTime: { fontSize: 14, color: Colors.primary, marginTop: 4, fontWeight: '600' },
-  nextDoseIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+  routinesCardHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
+  routinesCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
+  routinesCardBadge: {
+    backgroundColor: Colors.primaryLighter,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  routinesCardBadgeText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  routineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 5,
+  },
+  routineDot: { width: 6, height: 6, borderRadius: 3 },
+  routineEmoji: { fontSize: 16 },
+  routineName: { flex: 1, fontSize: 14, fontWeight: '500', color: Colors.text },
+  routineTime: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  routinesMore: { fontSize: 13, color: Colors.textTertiary, marginTop: 6, textAlign: 'center' },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',

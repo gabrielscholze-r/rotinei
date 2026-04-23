@@ -7,14 +7,91 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
-import { Note } from '../../lib/types';
+import { Note, PrivateNote } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 const NOTE_COLORS = Colors.noteColors;
 
+// ── PIN pad component ────────────────────────────────────────────────────────
+
+function PinDots({ entered, total = 4 }: { entered: number; total?: number }) {
+  return (
+    <View style={pinStyles.dots}>
+      {Array.from({ length: total }).map((_, i) => (
+        <View key={i} style={[pinStyles.dot, i < entered && pinStyles.dotFilled]} />
+      ))}
+    </View>
+  );
+}
+
+function PinPad({ onPress }: { onPress: (key: string) => void }) {
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  return (
+    <View style={pinStyles.pad}>
+      {keys.map((key, idx) => (
+        key === '' ? (
+          <View key={idx} style={pinStyles.keyEmpty} />
+        ) : (
+          <TouchableOpacity
+            key={idx}
+            style={[pinStyles.key, key === '⌫' && pinStyles.keyDel]}
+            onPress={() => onPress(key)}
+            activeOpacity={0.7}
+          >
+            <Text style={[pinStyles.keyText, key === '⌫' && pinStyles.keyDelText]}>{key}</Text>
+          </TouchableOpacity>
+        )
+      ))}
+    </View>
+  );
+}
+
+const pinStyles = StyleSheet.create({
+  dots: { flexDirection: 'row', gap: 16, justifyContent: 'center', marginBottom: 32 },
+  dot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    backgroundColor: 'transparent',
+  },
+  dotFilled: { backgroundColor: Colors.primary },
+  pad: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: 240,
+    alignSelf: 'center',
+    gap: 12,
+  },
+  key: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: Colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  keyEmpty: { width: 68, height: 68 },
+  keyDel: { backgroundColor: Colors.borderLight },
+  keyText: { fontSize: 24, fontWeight: '600', color: Colors.text },
+  keyDelText: { fontSize: 20, color: Colors.textSecondary },
+});
+
+// ── Main screen ──────────────────────────────────────────────────────────────
+
 export default function NotesScreen() {
   const router = useRouter();
+
+  // Public notes
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
@@ -22,20 +99,54 @@ export default function NotesScreen() {
   const [colorIndex, setColorIndex] = useState(0);
   const [search, setSearch] = useState('');
 
+  // Tab
+  const [notesTab, setNotesTab] = useState<'notas' | 'privado'>('notas');
+
+  // Private notes & PIN
+  const [pin, setPin] = useState<string | null>(null);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinStep, setPinStep] = useState<'enter' | 'setup_first' | 'setup_confirm'>('enter');
+  const [firstPinValue, setFirstPinValue] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [privateNotes, setPrivateNotes] = useState<PrivateNote[]>([]);
+  const [showAddPrivate, setShowAddPrivate] = useState(false);
+  const [editingPrivate, setEditingPrivate] = useState<PrivateNote | null>(null);
+  const [privateTitle, setPrivateTitle] = useState('');
+  const [privateContent, setPrivateContent] = useState('');
+
   useFocusEffect(
     useCallback(() => {
       load();
+      return () => {
+        // Lock private area when leaving the tab
+        setPinUnlocked(false);
+        setEnteredPin('');
+        setPinError('');
+        setNotesTab('notas');
+      };
     }, [])
   );
 
   async function load() {
-    const data = await getItem<Note[]>(KEYS.NOTES);
+    const [data, savedPin, privData] = await Promise.all([
+      getItem<Note[]>(KEYS.NOTES),
+      getItem<string>(KEYS.PRIVATE_PIN),
+      getItem<PrivateNote[]>(KEYS.PRIVATE_NOTES),
+    ]);
     setNotes(data ?? []);
+    setPin(savedPin);
+    setPrivateNotes(privData ?? []);
   }
 
   async function saveNotes(updated: Note[]) {
     await setItem(KEYS.NOTES, updated);
     setNotes(updated);
+  }
+
+  async function savePrivateNotes(updated: PrivateNote[]) {
+    await setItem(KEYS.PRIVATE_NOTES, updated);
+    setPrivateNotes(updated);
   }
 
   function createNote() {
@@ -69,6 +180,105 @@ export default function NotesScreen() {
     ]);
   }
 
+  function deletePrivateNote(id: string) {
+    Alert.alert('Excluir nota privada', 'Tem certeza?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: () => savePrivateNotes(privateNotes.filter((n) => n.id !== id)) },
+    ]);
+  }
+
+  function openEditPrivate(note: PrivateNote) {
+    setEditingPrivate(note);
+    setPrivateTitle(note.title);
+    setPrivateContent(note.content);
+    setShowAddPrivate(true);
+  }
+
+  function openNewPrivate() {
+    setEditingPrivate(null);
+    setPrivateTitle('');
+    setPrivateContent('');
+    setShowAddPrivate(true);
+  }
+
+  function savePrivateNote() {
+    if (!privateTitle.trim() && !privateContent.trim()) {
+      Alert.alert('Erro', 'Adicione um título ou conteúdo.');
+      return;
+    }
+    if (editingPrivate) {
+      const updated = privateNotes.map((n) =>
+        n.id === editingPrivate.id
+          ? { ...n, title: privateTitle.trim(), content: privateContent.trim(), updatedAt: new Date().toISOString() }
+          : n
+      );
+      savePrivateNotes(updated);
+    } else {
+      const note: PrivateNote = {
+        id: Date.now().toString(),
+        title: privateTitle.trim(),
+        content: privateContent.trim(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      savePrivateNotes([note, ...privateNotes]);
+    }
+    setShowAddPrivate(false);
+  }
+
+  function handleSwitchToPrivado() {
+    setNotesTab('privado');
+    setEnteredPin('');
+    setPinError('');
+    setPinStep(pin === null ? 'setup_first' : 'enter');
+    setFirstPinValue('');
+  }
+
+  function handlePinKey(key: string) {
+    if (key === '⌫') {
+      setEnteredPin((p) => p.slice(0, -1));
+      setPinError('');
+      return;
+    }
+    const next = enteredPin + key;
+    if (next.length > 4) return;
+    setEnteredPin(next);
+
+    if (next.length === 4) {
+      setTimeout(() => processPinComplete(next), 100);
+    }
+  }
+
+  async function processPinComplete(entered: string) {
+    if (pinStep === 'enter') {
+      if (entered === pin) {
+        setPinUnlocked(true);
+        setEnteredPin('');
+        setPinError('');
+      } else {
+        setEnteredPin('');
+        setPinError('PIN incorreto. Tente novamente.');
+      }
+    } else if (pinStep === 'setup_first') {
+      setFirstPinValue(entered);
+      setPinStep('setup_confirm');
+      setEnteredPin('');
+    } else if (pinStep === 'setup_confirm') {
+      if (entered === firstPinValue) {
+        await setItem(KEYS.PRIVATE_PIN, entered);
+        setPin(entered);
+        setPinUnlocked(true);
+        setEnteredPin('');
+        setPinError('');
+      } else {
+        setEnteredPin('');
+        setFirstPinValue('');
+        setPinStep('setup_first');
+        setPinError('PINs não coincidem. Tente novamente.');
+      }
+    }
+  }
+
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('pt-BR', {
       day: '2-digit',
@@ -83,70 +293,191 @@ export default function NotesScreen() {
       n.content.toLowerCase().includes(search.toLowerCase())
   );
 
+  const pinTitle =
+    pinStep === 'setup_first'
+      ? 'Crie seu PIN'
+      : pinStep === 'setup_confirm'
+      ? 'Confirme seu PIN'
+      : 'Digite seu PIN';
+
+  const pinSubtitle =
+    pinStep === 'setup_first'
+      ? 'Este PIN protege suas notas privadas'
+      : pinStep === 'setup_confirm'
+      ? 'Digite novamente para confirmar'
+      : 'Área protegida por PIN';
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Notas</Text>
       </View>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={18} color={Colors.textTertiary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar notas..."
-          placeholderTextColor={Colors.textTertiary}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
-          </TouchableOpacity>
-        )}
+      {/* Tab toggle */}
+      <View style={styles.tabToggle}>
+        <TouchableOpacity
+          style={[styles.tabToggleBtn, notesTab === 'notas' && styles.tabToggleBtnActive]}
+          onPress={() => setNotesTab('notas')}
+        >
+          <Text style={[styles.tabToggleText, notesTab === 'notas' && styles.tabToggleTextActive]}>Notas</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabToggleBtn, notesTab === 'privado' && styles.tabToggleBtnActive]}
+          onPress={handleSwitchToPrivado}
+        >
+          <Ionicons
+            name="lock-closed"
+            size={13}
+            color={notesTab === 'privado' ? Colors.primary : Colors.textSecondary}
+          />
+          <Text style={[styles.tabToggleText, notesTab === 'privado' && styles.tabToggleTextActive]}>Privado</Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {filtered.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="document-text-outline" size={56} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>
-              {search ? 'Nenhum resultado' : 'Nenhuma nota'}
-            </Text>
-            <Text style={styles.emptySub}>
-              {search ? 'Tente outra busca' : 'Toque em + para criar sua primeira nota'}
-            </Text>
+      {notesTab === 'notas' ? (
+        <>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color={Colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar notas..."
+              placeholderTextColor={Colors.textTertiary}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
 
-        <View style={styles.grid}>
-          {filtered.map((note) => (
-            <TouchableOpacity
-              key={note.id}
-              style={[styles.noteCard, { backgroundColor: note.color }]}
-              onPress={() => router.push(`/notes/${note.id}` as any)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.noteCardHeader}>
-                {note.title ? (
-                  <Text style={styles.noteTitle} numberOfLines={2}>{note.title}</Text>
-                ) : null}
-                <TouchableOpacity onPress={() => deleteNote(note.id)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={Colors.textSecondary} />
-                </TouchableOpacity>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+            {filtered.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="document-text-outline" size={56} color={Colors.textTertiary} />
+                <Text style={styles.emptyTitle}>
+                  {search ? 'Nenhum resultado' : 'Nenhuma nota'}
+                </Text>
+                <Text style={styles.emptySub}>
+                  {search ? 'Tente outra busca' : 'Toque em + para criar sua primeira nota'}
+                </Text>
               </View>
-              {note.content ? (
-                <Text style={styles.noteContent} numberOfLines={6}>{note.content}</Text>
-              ) : null}
-              <Text style={styles.noteDate}>{formatDate(note.updatedAt)}</Text>
+            )}
+            <View style={styles.grid}>
+              {filtered.map((note) => (
+                <TouchableOpacity
+                  key={note.id}
+                  style={[styles.noteCard, { backgroundColor: note.color }]}
+                  onPress={() => router.push(`/notes/${note.id}` as any)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.noteCardHeader}>
+                    {note.title ? (
+                      <Text style={styles.noteTitle} numberOfLines={2}>{note.title}</Text>
+                    ) : null}
+                    <TouchableOpacity onPress={() => deleteNote(note.id)} hitSlop={8}>
+                      <Ionicons name="close" size={16} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  {note.content ? (
+                    <Text style={styles.noteContent} numberOfLines={6}>{note.content}</Text>
+                  ) : null}
+                  <Text style={styles.noteDate}>{formatDate(note.updatedAt)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+            <Ionicons name="add" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </>
+      ) : !pinUnlocked ? (
+        /* ── PIN gate ── */
+        <View style={styles.pinGate}>
+          <View style={styles.pinLockIcon}>
+            <Ionicons name="lock-closed" size={36} color={Colors.primary} />
+          </View>
+          <Text style={styles.pinTitle}>{pinTitle}</Text>
+          <Text style={styles.pinSubtitle}>{pinSubtitle}</Text>
+          {pinError ? <Text style={styles.pinError}>{pinError}</Text> : null}
+          <PinDots entered={enteredPin.length} />
+          <PinPad onPress={handlePinKey} />
+          {pin !== null && (
+            <TouchableOpacity
+              style={styles.forgotPinBtn}
+              onPress={() => {
+                Alert.alert(
+                  'Redefinir PIN',
+                  'Isso apagará todas as notas privadas. Continuar?',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Redefinir',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await setItem(KEYS.PRIVATE_PIN, null as any);
+                        await setItem(KEYS.PRIVATE_NOTES, []);
+                        setPin(null);
+                        setPrivateNotes([]);
+                        setPinStep('setup_first');
+                        setEnteredPin('');
+                        setPinError('');
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.forgotPinText}>Esqueci meu PIN</Text>
             </TouchableOpacity>
-          ))}
+          )}
         </View>
-      </ScrollView>
+      ) : (
+        /* ── Private notes (unlocked) ── */
+        <>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+            {privateNotes.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="lock-closed-outline" size={56} color={Colors.textTertiary} />
+                <Text style={styles.emptyTitle}>Nenhuma nota privada</Text>
+                <Text style={styles.emptySub}>Toque em + para adicionar senhas e anotações privadas</Text>
+              </View>
+            )}
+            <View style={styles.privateGrid}>
+              {privateNotes.map((note) => (
+                <TouchableOpacity
+                  key={note.id}
+                  style={styles.privateCard}
+                  onPress={() => openEditPrivate(note)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.noteCardHeader}>
+                    <Ionicons name="lock-closed" size={13} color={Colors.textTertiary} style={{ marginTop: 1 }} />
+                    {note.title ? (
+                      <Text style={styles.privateTitle} numberOfLines={2}>{note.title}</Text>
+                    ) : null}
+                    <TouchableOpacity onPress={() => deletePrivateNote(note.id)} hitSlop={8}>
+                      <Ionicons name="close" size={16} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  {note.content ? (
+                    <Text style={styles.privateContent} numberOfLines={4}>{note.content}</Text>
+                  ) : null}
+                  <Text style={styles.noteDate}>{formatDate(note.updatedAt)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
-        <Ionicons name="add" size={28} color={Colors.white} />
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.fab} onPress={openNewPrivate}>
+            <Ionicons name="add" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </>
+      )}
 
+      {/* Modal: Nova nota pública */}
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -158,7 +489,6 @@ export default function NotesScreen() {
               <Text style={styles.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
-
           <View style={[styles.noteEditor, { backgroundColor: NOTE_COLORS[colorIndex] }]}>
             <TextInput
               style={styles.editorTitle}
@@ -179,7 +509,6 @@ export default function NotesScreen() {
               autoFocus
             />
           </View>
-
           <View style={styles.colorBar}>
             {NOTE_COLORS.map((c, i) => (
               <TouchableOpacity
@@ -190,6 +519,44 @@ export default function NotesScreen() {
                 {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
               </TouchableOpacity>
             ))}
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Modal: Nota privada */}
+      <Modal visible={showAddPrivate} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowAddPrivate(false)}>
+              <Text style={styles.cancelBtn}>Cancelar</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="lock-closed" size={14} color={Colors.textSecondary} />
+              <Text style={styles.modalTitle}>{editingPrivate ? 'Editar nota' : 'Nova nota privada'}</Text>
+            </View>
+            <TouchableOpacity onPress={savePrivateNote}>
+              <Text style={styles.saveText}>Salvar</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.noteEditor, { backgroundColor: '#F8FAFC' }]}>
+            <TextInput
+              style={styles.editorTitle}
+              placeholder="Título (ex: Gmail, Banco...)"
+              placeholderTextColor={Colors.textSecondary}
+              value={privateTitle}
+              onChangeText={setPrivateTitle}
+              multiline
+            />
+            <TextInput
+              style={styles.editorContent}
+              placeholder="Anote aqui seus dados, senhas..."
+              placeholderTextColor={Colors.textSecondary}
+              value={privateContent}
+              onChangeText={setPrivateContent}
+              multiline
+              textAlignVertical="top"
+              autoFocus
+            />
           </View>
         </SafeAreaView>
       </Modal>
@@ -224,6 +591,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
+  tabToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    backgroundColor: Colors.borderLight,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 12,
+  },
+  tabToggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  tabToggleBtnActive: { backgroundColor: Colors.card },
+  tabToggleText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
+  tabToggleTextActive: { color: Colors.primary },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -238,7 +625,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   searchInput: { flex: 1, fontSize: 15, color: Colors.text },
-  scroll: { paddingHorizontal: 20, paddingBottom: 40 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 100 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.textSecondary },
   emptySub: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center' },
@@ -253,6 +640,46 @@ const styles = StyleSheet.create({
   noteTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
   noteContent: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   noteDate: { fontSize: 11, color: Colors.textTertiary, marginTop: 8 },
+  // Private notes
+  privateGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  privateCard: {
+    width: '47%',
+    borderRadius: 16,
+    padding: 14,
+    minHeight: 120,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  privateTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
+  privateContent: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+  // PIN gate
+  pinGate: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  pinLockIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLighter,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  pinTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 6, textAlign: 'center' },
+  pinSubtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 28, textAlign: 'center' },
+  pinError: { fontSize: 13, color: Colors.danger, marginBottom: 12, textAlign: 'center', fontWeight: '600' },
+  forgotPinBtn: { marginTop: 28 },
+  forgotPinText: { fontSize: 14, color: Colors.danger, fontWeight: '600' },
+  // Modals
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHeader: {
     flexDirection: 'row',

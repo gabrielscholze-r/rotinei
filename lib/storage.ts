@@ -20,4 +20,9 @@ export const KEYS = {
   EXPENSES: 'expenses',
   BILLING_CYCLE_DAY: 'billing_cycle_day',
   CUSTOM_CATEGORIES: 'custom_categories',
+  ROUTINES: 'routines',
+  ROUTINE_LOGS: 'routine_logs',
+  GOALS: 'goals',
+  PRIVATE_NOTES: 'private_notes',
+  PRIVATE_PIN: 'private_pin',
 };
