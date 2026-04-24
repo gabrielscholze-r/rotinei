@@ -1,17 +1,31 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-function TabIcon({ name, color, size }: { name: IoniconName; color: string; size: number }) {
-  return <Ionicons name={name} size={size} color={color} />;
+function TabIcon({ name, color, size, focused }: { name: IoniconName; color: string; size: number; focused: boolean }) {
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      {focused && (
+        <View style={{
+          position: 'absolute',
+          width: 52,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: Colors.primary + '1A',
+        }} />
+      )}
+      <Ionicons name={name} size={26} color={color} />
+    </View>
+  );
 }
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 56 + insets.bottom;
+  const tabBarHeight = 80 + insets.bottom + 28;
 
   return (
     <Tabs
@@ -24,8 +38,8 @@ export default function TabsLayout() {
           borderTopColor: Colors.border,
           borderTopWidth: 1,
           height: tabBarHeight,
-          paddingBottom: insets.bottom || 8,
-          paddingTop: 8,
+          paddingBottom: insets.bottom + 28,
+          paddingTop: 14,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -33,7 +47,7 @@ export default function TabsLayout() {
           shadowRadius: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: '600',
         },
       }}
@@ -42,8 +56,8 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Início',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="home" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="home" color={color} size={size} focused={focused} />
           ),
         }}
       />
@@ -51,8 +65,8 @@ export default function TabsLayout() {
         name="routines"
         options={{
           title: 'Rotinas',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="alarm" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="alarm" color={color} size={size} focused={focused} />
           ),
         }}
       />
@@ -60,8 +74,8 @@ export default function TabsLayout() {
         name="todos"
         options={{
           title: 'Listas',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="checkbox" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="checkbox" color={color} size={size} focused={focused} />
           ),
         }}
       />
@@ -69,8 +83,8 @@ export default function TabsLayout() {
         name="notes"
         options={{
           title: 'Notas',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="document-text" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="document-text" color={color} size={size} focused={focused} />
           ),
         }}
       />
@@ -78,8 +92,8 @@ export default function TabsLayout() {
         name="expenses"
         options={{
           title: 'Gastos',
-          tabBarIcon: ({ color, size }) => (
-            <TabIcon name="wallet" color={color} size={size} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name="wallet" color={color} size={size} focused={focused} />
           ),
         }}
       />
