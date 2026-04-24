@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { getItem, KEYS } from '../../lib/storage';
-import { Routine, RoutineLog, TodoList, Note, Expense, Goal } from '../../lib/types';
+import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
 import { isRoutineForToday, isRoutineCompletedToday, formatRoutineDays } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 
@@ -31,11 +31,12 @@ export default function HomeScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cycleDay, setCycleDay] = useState<number>(1);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [rts, logs, todos, nts, exps, day, gls] = await Promise.all([
+        const [rts, logs, todos, nts, exps, day, gls, cats] = await Promise.all([
           getItem<Routine[]>(KEYS.ROUTINES),
           getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
           getItem<TodoList[]>(KEYS.TODO_LISTS),
@@ -43,6 +44,7 @@ export default function HomeScreen() {
           getItem<Expense[]>(KEYS.EXPENSES),
           getItem<number>(KEYS.BILLING_CYCLE_DAY),
           getItem<Goal[]>(KEYS.GOALS),
+          getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
         ]);
         setRoutines(rts ?? []);
         setRoutineLogs(logs ?? []);
@@ -51,6 +53,7 @@ export default function HomeScreen() {
         setExpenses(exps ?? []);
         setCycleDay(day ?? 1);
         setGoals(gls ?? []);
+        setCustomCategories(cats ?? []);
       }
       load();
     }, [])
@@ -90,6 +93,25 @@ export default function HomeScreen() {
     ...activeGoals.filter((g) => !priorityIds.has(g.id)),
   ].slice(0, 3);
 
+  const recentNotes = [...notes]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 3);
+
+  const recentExpenses = expenses
+    .filter((e) => isInPeriod(e.date, activePeriodKey, cycleDay))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 3);
+
+  function getCategoryIcon(cat: string): string {
+    if (cat in CATEGORY_ICONS) return CATEGORY_ICONS[cat as keyof typeof CATEGORY_ICONS];
+    return customCategories.find((c) => c.id === cat)?.emoji ?? '🏷️';
+  }
+
+  function getCategoryLabel(cat: string): string {
+    if (cat in CATEGORY_LABELS) return CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS];
+    return customCategories.find((c) => c.id === cat)?.name ?? cat;
+  }
+
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
 
@@ -109,29 +131,41 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Today's pending routines card */}
-        {pendingRoutines.length > 0 && (
+        {/* Today's routines card */}
+        {todayRoutines.length > 0 && (
           <TouchableOpacity
-            style={styles.routinesCard}
+            style={pendingRoutines.length === 0 ? styles.routinesDoneCard : styles.routinesCard}
             onPress={() => router.push('/(tabs)/routines')}
             activeOpacity={0.85}
           >
             <View style={styles.routinesCardHeader}>
               <Text style={styles.routinesCardTitle}>Rotinas de hoje</Text>
-              <View style={styles.routinesCardBadge}>
-                <Text style={styles.routinesCardBadgeText}>{pendingRoutines.length} pendentes</Text>
-              </View>
+              {pendingRoutines.length === 0 ? (
+                <View style={styles.routinesDoneBadge}>
+                  <Text style={styles.routinesDoneBadgeText}>tudo feito</Text>
+                </View>
+              ) : (
+                <View style={styles.routinesCardBadge}>
+                  <Text style={styles.routinesCardBadgeText}>{pendingRoutines.length} pendentes</Text>
+                </View>
+              )}
             </View>
-            {sortedPendingRoutines.slice(0, 3).map((r) => (
-              <View key={r.id} style={styles.routineRow}>
-                <View style={[styles.routineDot, { backgroundColor: r.color }]} />
-                <Text style={styles.routineEmoji}>{r.icon}</Text>
-                <Text style={styles.routineName} numberOfLines={1}>{r.name}</Text>
-                <Text style={styles.routineTime}>{r.time}</Text>
-              </View>
-            ))}
-            {pendingRoutines.length > 3 && (
-              <Text style={styles.routinesMore}>+{pendingRoutines.length - 3} mais</Text>
+            {pendingRoutines.length === 0 ? (
+              <Text style={styles.routinesDoneMessage}>Todas as rotinas concluídas!</Text>
+            ) : (
+              <>
+                {sortedPendingRoutines.slice(0, 3).map((r) => (
+                  <View key={r.id} style={styles.routineRow}>
+                    <View style={[styles.routineDot, { backgroundColor: r.color }]} />
+                    <Text style={styles.routineEmoji}>{r.icon}</Text>
+                    <Text style={styles.routineName} numberOfLines={1}>{r.name}</Text>
+                    <Text style={styles.routineTime}>{r.time}</Text>
+                  </View>
+                ))}
+                {pendingRoutines.length > 3 && (
+                  <Text style={styles.routinesMore}>+{pendingRoutines.length - 3} mais</Text>
+                )}
+              </>
             )}
           </TouchableOpacity>
         )}
@@ -144,7 +178,7 @@ export default function HomeScreen() {
               label: 'Rotinas',
               icon: 'alarm' as IoniconName,
               color: Colors.primary,
-              bg: Colors.primaryLighter,
+              bg: "#2564eb3d",
               route: '/(tabs)/routines',
               count: todayRoutines.length - pendingRoutines.length,
               subtitle: pendingRoutines.length > 0 ? `${pendingRoutines.length} pendentes` : 'tudo feito hoje',
@@ -273,6 +307,53 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               );
             })}
+          </>
+        )}
+        {recentNotes.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Notas recentes</Text>
+            {recentNotes.map((note) => (
+              <TouchableOpacity
+                key={note.id}
+                style={styles.notePreview}
+                onPress={() => router.push('/(tabs)/notes' as any)}
+              >
+                <View style={[styles.noteColorDot, { backgroundColor: note.color }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.notePreviewTitle} numberOfLines={1}>{note.title}</Text>
+                  {note.content.length > 0 && (
+                    <Text style={styles.notePreviewContent} numberOfLines={1}>{note.content}</Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {recentExpenses.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Gastos recentes</Text>
+            {recentExpenses.map((expense) => (
+              <TouchableOpacity
+                key={expense.id}
+                style={styles.expensePreview}
+                onPress={() => router.push('/(tabs)/expenses' as any)}
+              >
+                <View style={styles.expenseCategoryIcon}>
+                  <Text style={{ fontSize: 20 }}>{getCategoryIcon(expense.category)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.expensePreviewTitle} numberOfLines={1}>{expense.description}</Text>
+                  <Text style={styles.expenseMeta}>
+                    {getCategoryLabel(expense.category)} · {new Date(expense.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                  </Text>
+                </View>
+                <Text style={styles.expenseAmount}>
+                  {`- R$ ${expense.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </>
         )}
       </ScrollView>
@@ -406,4 +487,61 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   goalPreviewFill: { height: '100%', borderRadius: 3 },
+  routinesDoneCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.success,
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  routinesDoneBadge: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  routinesDoneBadgeText: { fontSize: 12, fontWeight: '600', color: Colors.success },
+  routinesDoneMessage: { fontSize: 14, color: Colors.success, fontWeight: '500', marginTop: 4 },
+  notePreview: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  noteColorDot: { width: 10, height: 10, borderRadius: 5 },
+  notePreviewTitle: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  notePreviewContent: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  expensePreview: {
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  expenseCategoryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expensePreviewTitle: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  expenseMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  expenseAmount: { fontSize: 14, fontWeight: '700', color: Colors.danger },
 });
