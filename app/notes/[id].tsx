@@ -130,7 +130,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   saveBtn: {
