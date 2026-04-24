@@ -1,8 +1,8 @@
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { View } from 'react-native';
-import { Colors } from '../../constants/colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/colors';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -34,12 +34,12 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textTertiary,
         tabBarStyle: {
+          display: 'none',
           backgroundColor: Colors.card,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingBottom: insets.bottom + 28,
-          paddingTop: 14,
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },

@@ -14,6 +14,7 @@ import {
   formatRoutineDays, DAY_LABELS,
 } from '../../lib/routines';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 const ROUTINE_COLORS = Colors.medColors;
 
@@ -117,6 +118,7 @@ async function cancelRoutineNotifications(ids: string[]) {
 }
 
 export default function RoutinesScreen() {
+  const router = useRouter();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -230,6 +232,9 @@ export default function RoutinesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>Rotinas</Text>
       </View>
 
@@ -429,6 +434,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
+  backBtn: { marginRight: 12, padding: 4 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
   fab: {
     position: 'absolute',

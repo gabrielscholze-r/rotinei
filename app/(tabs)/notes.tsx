@@ -310,6 +310,9 @@ export default function NotesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>Notas</Text>
       </View>
 
@@ -574,6 +577,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
+  backBtn: { marginRight: 12, padding: 4 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
   fab: {
     position: 'absolute',

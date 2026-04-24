@@ -1,10 +1,10 @@
+import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { LogBox, Platform } from 'react-native';
-import { useEffect } from 'react';
-import * as NavigationBar from 'expo-navigation-bar';
 
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications',
@@ -16,7 +16,6 @@ export default function RootLayout() {
     if (Platform.OS === 'android') {
       NavigationBar.setButtonStyleAsync('dark');
       NavigationBar.setVisibilityAsync('hidden');
-      NavigationBar.setBehaviorAsync('inset-swipe');
     }
   }, []);
 

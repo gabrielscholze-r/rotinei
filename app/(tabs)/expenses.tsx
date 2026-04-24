@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
 } from '../../lib/billing';
+import { useRouter } from 'expo-router';
 
 const BUILT_IN_CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
 
@@ -132,6 +133,7 @@ const DEFAULT_TX_FORM: TransactionForm = {
 };
 
 export default function ExpensesScreen() {
+  const router = useRouter();
   // Main tab
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
@@ -367,6 +369,9 @@ export default function ExpensesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>{mainTab === 'gastos' ? 'Gastos' : 'Metas'}</Text>
         {mainTab === 'gastos' && (
           <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
@@ -981,6 +986,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
   },
+  backBtn: { marginRight: 12, padding: 4 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },
   settingsBtn: {
     width: 40,
