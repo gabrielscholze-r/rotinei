@@ -286,7 +286,7 @@ export default function RoutinesScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Today's routines */}
+        
         <Text style={styles.sectionTitle}>Hoje</Text>
         {sortedToday.length === 0 ? (
           <View style={styles.emptyToday}>
@@ -319,7 +319,7 @@ export default function RoutinesScreen() {
           })
         )}
 
-        {/* All routines */}
+        
         <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Todas as rotinas</Text>
         {routines.length === 0 ? (
           <View style={styles.empty}>
@@ -362,7 +362,7 @@ export default function RoutinesScreen() {
         <Ionicons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
 
-      {/* Add Routine Modal */}
+      
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>

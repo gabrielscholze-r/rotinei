@@ -108,7 +108,7 @@ interface GoalForm {
   name: string;
   emoji: string;
   targetAmount: string;
-  deadline: string; // "YYYY-MM-DD" or ""
+  deadline: string; 
   color: string;
 }
 
@@ -135,10 +135,9 @@ const DEFAULT_TX_FORM: TransactionForm = {
 export default function ExpensesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // Main tab
+  
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
-  // Expenses state
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -154,7 +153,6 @@ export default function ExpensesScreen() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // Goals state
   const [goals, setGoals] = useState<Goal[]>([]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [showGoalEmoji, setShowGoalEmoji] = useState(false);
@@ -267,7 +265,7 @@ export default function ExpensesScreen() {
     ]);
   }
 
-  // ── Goals ────────────────────────────────────────────────────────────────
+  
 
   function addGoal() {
     if (!goalForm.name.trim()) {
@@ -383,7 +381,7 @@ export default function ExpensesScreen() {
         )}
       </View>
 
-      {/* Main tab toggle */}
+      
       <View style={styles.mainTabs}>
         <TouchableOpacity
           style={[styles.mainTab, mainTab === 'gastos' && styles.mainTabActive]}
@@ -587,7 +585,7 @@ export default function ExpensesScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Progress bar */}
+                  
                   <View style={styles.goalBarTrack}>
                     <View style={[styles.goalBarFill, { width: `${pct}%`, backgroundColor: finished ? Colors.success : goal.color }]} />
                   </View>
@@ -599,7 +597,7 @@ export default function ExpensesScreen() {
                     )}
                   </View>
 
-                  {/* Action buttons */}
+                  
                   {!finished && (
                     <View style={styles.goalActions}>
                       <TouchableOpacity
@@ -621,7 +619,7 @@ export default function ExpensesScreen() {
                     </View>
                   )}
 
-                  {/* Last transactions */}
+                  
                   {goal.transactions.length > 0 && (
                     <View style={styles.txList}>
                       {goal.transactions.slice(0, 3).map((tx) => (
@@ -656,7 +654,7 @@ export default function ExpensesScreen() {
         <Ionicons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
 
-      {/* Modal: Novo gasto */}
+      
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -736,7 +734,7 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: Nova categoria */}
+      
       <Modal visible={showNewCategory} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -794,7 +792,7 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: Configurações */}
+      
       <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -823,7 +821,7 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: Nova meta */}
+      
       <Modal visible={showAddGoal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -923,7 +921,7 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: Transação de meta */}
+      
       <Modal visible={showTxModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -1157,7 +1155,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   filterChipText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
-  // Goals
+  
   goalsSummaryCard: {
     backgroundColor: Colors.primary,
     marginHorizontal: 20,
@@ -1240,7 +1238,7 @@ const styles = StyleSheet.create({
   },
   txGoalName: { fontSize: 16, fontWeight: '700', color: Colors.text },
   txGoalBalance: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  // Modals
+  
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHeader: {
     flexDirection: 'row',

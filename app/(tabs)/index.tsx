@@ -131,7 +131,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Today's routines card */}
+        
         {todayRoutines.length > 0 && (
           <TouchableOpacity
             style={pendingRoutines.length === 0 ? styles.routinesDoneCard : styles.routinesCard}

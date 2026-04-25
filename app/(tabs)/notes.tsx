@@ -11,8 +11,6 @@ import { Note, PrivateNote } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
-// ── PIN pad component ────────────────────────────────────────────────────────
-
 function PinDots({ entered, total = 4 }: { entered: number; total?: number }) {
   return (
     <View style={pinStyles.dots}>
@@ -84,23 +82,23 @@ const pinStyles = StyleSheet.create({
   keyDelText: { fontSize: 20, color: Colors.textSecondary },
 });
 
-// ── Main screen ──────────────────────────────────────────────────────────────
+
 
 export default function NotesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Public notes
+  
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [search, setSearch] = useState('');
 
-  // Tab
+  
   const [notesTab, setNotesTab] = useState<'notas' | 'privado'>('notas');
 
-  // Private notes & PIN
+  
   const [pin, setPin] = useState<string | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
@@ -117,7 +115,7 @@ export default function NotesScreen() {
     useCallback(() => {
       load();
       return () => {
-        // Lock private area when leaving the tab
+        
         setPinUnlocked(false);
         setEnteredPin('');
         setPinError('');
@@ -314,7 +312,7 @@ export default function NotesScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Tab toggle */}
+      
       <View style={styles.tabToggle}>
         <TouchableOpacity
           style={[styles.tabToggleBtn, notesTab === 'notas' && styles.tabToggleBtnActive]}
@@ -478,7 +476,7 @@ export default function NotesScreen() {
         </>
       )}
 
-      {/* Modal: Nova nota pública */}
+      
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -515,7 +513,7 @@ export default function NotesScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Modal: Nota privada */}
+      
       <Modal visible={showAddPrivate} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -642,7 +640,7 @@ const styles = StyleSheet.create({
   noteTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
   noteContent: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   noteDate: { fontSize: 11, color: Colors.textTertiary, marginTop: 8 },
-  // Private notes
+  
   privateGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   privateCard: {
     width: '47%',
@@ -660,7 +658,7 @@ const styles = StyleSheet.create({
   },
   privateTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
   privateContent: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
-  // PIN gate
+  
   pinGate: {
     flex: 1,
     alignItems: 'center',
@@ -681,7 +679,7 @@ const styles = StyleSheet.create({
   pinError: { fontSize: 13, color: Colors.danger, marginBottom: 12, textAlign: 'center', fontWeight: '600' },
   forgotPinBtn: { marginTop: 28 },
   forgotPinText: { fontSize: 14, color: Colors.danger, fontWeight: '600' },
-  // Modals
+  
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHeader: {
     flexDirection: 'row',
