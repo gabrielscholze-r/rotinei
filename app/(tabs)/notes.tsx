@@ -11,8 +11,6 @@ import { Note, PrivateNote } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
-const NOTE_COLORS = Colors.noteColors;
-
 // ── PIN pad component ────────────────────────────────────────────────────────
 
 function PinDots({ entered, total = 4 }: { entered: number; total?: number }) {
@@ -97,7 +95,6 @@ export default function NotesScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [colorIndex, setColorIndex] = useState(0);
   const [search, setSearch] = useState('');
 
   // Tab
@@ -159,7 +156,7 @@ export default function NotesScreen() {
       id: Date.now().toString(),
       title: title.trim(),
       content: content.trim(),
-      color: NOTE_COLORS[colorIndex],
+      color: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -171,7 +168,6 @@ export default function NotesScreen() {
   function resetForm() {
     setTitle('');
     setContent('');
-    setColorIndex(0);
   }
 
   function deleteNote(id: string) {
@@ -373,7 +369,7 @@ export default function NotesScreen() {
               {filtered.map((note) => (
                 <TouchableOpacity
                   key={note.id}
-                  style={[styles.noteCard, { backgroundColor: note.color }]}
+                  style={styles.noteCard}
                   onPress={() => router.push(`/notes/${note.id}` as any)}
                   activeOpacity={0.8}
                 >
@@ -495,7 +491,7 @@ export default function NotesScreen() {
             </TouchableOpacity>
           </View>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.noteEditor, { backgroundColor: NOTE_COLORS[colorIndex] }]}>
+            <View style={[styles.noteEditor, { backgroundColor: Colors.background }]}>
               <TextInput
                 style={styles.editorTitle}
                 placeholder="Título"
@@ -514,17 +510,6 @@ export default function NotesScreen() {
                 textAlignVertical="top"
                 autoFocus
               />
-            </View>
-            <View style={styles.colorBar}>
-              {NOTE_COLORS.map((c, i) => (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
-                  onPress={() => setColorIndex(i)}
-                >
-                  {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
-                </TouchableOpacity>
-              ))}
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -644,6 +629,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     minHeight: 120,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   noteCardHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
   noteTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
@@ -715,23 +708,4 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     flex: 1,
   },
-  colorBar: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 16,
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.card,
-  },
-  colorDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  colorDotSelected: { borderColor: Colors.textSecondary },
 });

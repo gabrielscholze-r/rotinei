@@ -10,8 +10,6 @@ import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note } from '../../lib/types';
 
-const NOTE_COLORS = Colors.noteColors;
-
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -19,7 +17,6 @@ export default function NoteDetailScreen() {
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [colorIndex, setColorIndex] = useState(0);
   const [changed, setChanged] = useState(false);
 
   useEffect(() => {
@@ -35,7 +32,6 @@ export default function NoteDetailScreen() {
       setNote(n);
       setTitle(n.title);
       setContent(n.content);
-      setColorIndex(NOTE_COLORS.indexOf(n.color));
     }
   }
 
@@ -45,7 +41,6 @@ export default function NoteDetailScreen() {
       ...note,
       title,
       content,
-      color: NOTE_COLORS[Math.max(0, colorIndex)],
       updatedAt: new Date().toISOString(),
     };
     const updatedAll = allNotes.map((n) => (n.id === id ? updated : n));
@@ -70,10 +65,8 @@ export default function NoteDetailScreen() {
 
   if (!note) return null;
 
-  const bgColor = NOTE_COLORS[Math.max(0, colorIndex)] ?? note.color;
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
@@ -113,17 +106,6 @@ export default function NoteDetailScreen() {
           autoFocus={!content}
         />
 
-        <View style={styles.colorBar}>
-          {NOTE_COLORS.map((c, i) => (
-            <TouchableOpacity
-              key={c}
-              style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
-              onPress={() => { setColorIndex(i); setChanged(true); }}
-            >
-              {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
-            </TouchableOpacity>
-          ))}
-        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -162,23 +144,4 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 20,
   },
-  colorBar: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 16,
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#00000010',
-    backgroundColor: '#00000008',
-  },
-  colorDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  colorDotSelected: { borderColor: Colors.textSecondary },
 });

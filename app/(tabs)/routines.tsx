@@ -123,6 +123,7 @@ export default function RoutinesScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [form, setForm] = useState<AddForm>(DEFAULT_FORM);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -156,6 +157,23 @@ export default function RoutinesScreen() {
   function openAdd() {
     const now = new Date();
     setForm({ ...DEFAULT_FORM, hour: pad(now.getHours()), minute: pad(now.getMinutes()) });
+    setEditingRoutine(null);
+    setShowAdd(true);
+  }
+
+  function openEdit(routine: Routine) {
+    const [h, m] = routine.time.split(':');
+    const colorIndex = ROUTINE_COLORS.indexOf(routine.color);
+    setForm({
+      name: routine.name,
+      icon: routine.icon,
+      description: routine.description ?? '',
+      hour: h,
+      minute: m,
+      days: routine.days,
+      colorIndex: colorIndex >= 0 ? colorIndex : 0,
+    });
+    setEditingRoutine(routine);
     setShowAdd(true);
   }
 
@@ -182,6 +200,33 @@ export default function RoutinesScreen() {
       createdAt: new Date().toISOString(),
     };
     await saveRoutines([routine, ...routines]);
+    setShowAdd(false);
+  }
+
+  async function updateRoutine() {
+    if (!editingRoutine) return;
+    if (!form.name.trim()) {
+      Alert.alert('Erro', 'Informe o nome da rotina.');
+      return;
+    }
+    const h = parseInt(form.hour);
+    const m = parseInt(form.minute);
+    if (isNaN(h) || h < 0 || h > 23 || isNaN(m) || m < 0 || m > 59) {
+      Alert.alert('Erro', 'Horário inválido.');
+      return;
+    }
+    const time = `${pad(h)}:${pad(m)}`;
+    const partial = { name: form.name.trim(), icon: form.icon, description: form.description.trim(), time, days: form.days };
+    await cancelRoutineNotifications(editingRoutine.notificationIds);
+    const notificationIds = editingRoutine.active ? await scheduleRoutineNotifications(partial) : [];
+    const updated: Routine = {
+      ...editingRoutine,
+      ...partial,
+      color: ROUTINE_COLORS[form.colorIndex],
+      notificationIds,
+    };
+    await saveRoutines(routines.map((r) => r.id === editingRoutine.id ? updated : r));
+    setEditingRoutine(null);
     setShowAdd(false);
   }
 
@@ -295,6 +340,9 @@ export default function RoutinesScreen() {
                   <Text style={styles.routineDesc} numberOfLines={1}>{routine.description}</Text>
                 ) : null}
               </View>
+              <TouchableOpacity onPress={() => openEdit(routine)} hitSlop={8} style={{ marginRight: 8 }}>
+                <Ionicons name="create-outline" size={18} color={Colors.textTertiary} />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => toggleActive(routine)} hitSlop={8} style={{ marginRight: 8 }}>
                 <Ionicons
                   name={routine.active ? 'toggle' : 'toggle-outline'}
@@ -318,8 +366,8 @@ export default function RoutinesScreen() {
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Nova rotina</Text>
-            <TouchableOpacity onPress={() => setShowAdd(false)}>
+            <Text style={styles.modalTitle}>{editingRoutine ? 'Editar rotina' : 'Nova rotina'}</Text>
+            <TouchableOpacity onPress={() => { setShowAdd(false); setEditingRoutine(null); }}>
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -416,8 +464,8 @@ export default function RoutinesScreen() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={addRoutine}>
-              <Text style={styles.saveBtnText}>Criar rotina</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={editingRoutine ? updateRoutine : addRoutine}>
+              <Text style={styles.saveBtnText}>{editingRoutine ? 'Salvar alterações' : 'Criar rotina'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
