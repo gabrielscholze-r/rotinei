@@ -3,7 +3,8 @@ import {
   Modal, TextInput, Alert, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -134,8 +135,6 @@ const DEFAULT_TX_FORM: TransactionForm = {
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -647,12 +646,7 @@ export default function ExpensesScreen() {
         </>
       )}
 
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 24 }]}
-        onPress={() => mainTab === 'metas' ? setShowAddGoal(true) : setShowAdd(true)}
-      >
-        <Ionicons name="add" size={28} color={Colors.white} />
-      </TouchableOpacity>
+      <FAB onPress={() => mainTab === 'metas' ? setShowAddGoal(true) : setShowAdd(true)} />
 
       
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
@@ -995,22 +989,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.borderLight,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
   mainTabs: {
     flexDirection: 'row',

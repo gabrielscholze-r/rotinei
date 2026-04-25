@@ -1,4 +1,4 @@
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import { getItem, setItem, KEYS } from './storage';
@@ -88,26 +88,21 @@ export async function rescheduleAllNotifications(): Promise<void> {
 TaskManager.defineTask(BACKGROUND_TASK_NAME, async () => {
   try {
     await rescheduleAllNotifications();
-    return BackgroundFetch.BackgroundFetchResult.NewData;
+    return BackgroundTask.BackgroundTaskResult.Success;
   } catch {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
 export async function registerBackgroundTask(): Promise<void> {
   try {
-    const status = await BackgroundFetch.getStatusAsync();
-    if (
-      status === BackgroundFetch.BackgroundFetchStatus.Restricted ||
-      status === BackgroundFetch.BackgroundFetchStatus.Denied
-    ) return;
+    const status = await BackgroundTask.getStatusAsync();
+    if (status === BackgroundTask.BackgroundTaskStatus.Restricted) return;
 
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_TASK_NAME);
     if (!isRegistered) {
-      await BackgroundFetch.registerTaskAsync(BACKGROUND_TASK_NAME, {
-        minimumInterval: 15 * 60,
-        stopOnTerminate: false,
-        startOnBoot: true,
+      await BackgroundTask.registerTaskAsync(BACKGROUND_TASK_NAME, {
+        minimumInterval: 15,
       });
     }
   } catch {}

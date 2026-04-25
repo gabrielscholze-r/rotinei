@@ -2,7 +2,8 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert, Platform,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
@@ -125,7 +126,6 @@ async function cancelRoutineNotifications(ids: string[]) {
 
 export default function RoutinesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -364,9 +364,7 @@ export default function RoutinesScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={openAdd}>
-        <Ionicons name="add" size={28} color={Colors.white} />
-      </TouchableOpacity>
+      <FAB onPress={openAdd} />
 
       
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
@@ -491,22 +489,6 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', fontSize: 28, fontWeight: '800', color: Colors.text },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
   scroll: { paddingHorizontal: 20, paddingBottom: 100 },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   emptyToday: {

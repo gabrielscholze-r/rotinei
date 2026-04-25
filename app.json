@@ -9,7 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["processing"],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.expo.modules.backgroundtask.processing"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,10 +39,13 @@
     },
     "plugins": [
       "expo-router",
-      ["expo-notifications", {
-        "androidMode": "default",
-        "androidCollapsedTitle": "Rotinas"
-      }],
+      [
+        "expo-notifications",
+        {
+          "androidMode": "default",
+          "androidCollapsedTitle": "Rotinas"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -49,7 +58,8 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true,

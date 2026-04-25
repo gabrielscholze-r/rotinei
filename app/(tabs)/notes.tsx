@@ -2,7 +2,8 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -86,9 +87,6 @@ const pinStyles = StyleSheet.create({
 
 export default function NotesScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-
-  
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
@@ -388,9 +386,7 @@ export default function NotesScreen() {
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => setShowAdd(true)}>
-            <Ionicons name="add" size={28} color={Colors.white} />
-          </TouchableOpacity>
+          <FAB onPress={() => setShowAdd(true)} />
         </>
       ) : !pinUnlocked ? (
         /* ── PIN gate ── */
@@ -470,9 +466,7 @@ export default function NotesScreen() {
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={openNewPrivate}>
-            <Ionicons name="add" size={28} color={Colors.white} />
-          </TouchableOpacity>
+          <FAB onPress={openNewPrivate} />
         </>
       )}
 
@@ -567,22 +561,6 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', fontSize: 28, fontWeight: '800', color: Colors.text },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
   tabToggle: {
     flexDirection: 'row',
     marginHorizontal: 20,

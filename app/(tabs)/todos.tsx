@@ -2,7 +2,8 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -16,7 +17,6 @@ const LIST_ICONS = ['🛒', '🏠', '💼', '🏃', '📚', '🎯', '🍔', '�
 
 export default function TodosScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [lists, setLists] = useState<TodoList[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
@@ -123,9 +123,7 @@ export default function TodosScreen() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => setShowAdd(true)}>
-        <Ionicons name="add" size={28} color={Colors.white} />
-      </TouchableOpacity>
+      <FAB onPress={() => setShowAdd(true)} />
 
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
@@ -195,22 +193,6 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center', fontSize: 28, fontWeight: '800', color: Colors.text },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
   scroll: { padding: 20, paddingTop: 4, paddingBottom: 40 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.textSecondary },
