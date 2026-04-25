@@ -61,7 +61,11 @@ async function setupNotifications() {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('routines', {
         name: 'Rotinas',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        sound: 'default',
       });
     }
   } catch {}
@@ -79,6 +83,8 @@ async function scheduleRoutineNotifications(
     const content = {
       title: `${routine.icon} ${routine.name}`,
       body: routine.description || 'Hora da sua rotina!',
+      sound: 'default' as const,
+      ...(Platform.OS === 'android' && { channelId: 'routines' }),
     };
     const ids: string[] = [];
     if (routine.days.length === 0) {

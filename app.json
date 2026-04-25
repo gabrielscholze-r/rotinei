@@ -20,7 +20,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.scholzegabu.rotinei"
+      "package": "com.scholzegabu.rotinei",
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
     },
     "web": {
       "output": "static",
@@ -28,7 +33,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      ["expo-notifications", {
+        "androidMode": "default",
+        "androidCollapsedTitle": "Rotinas"
+      }],
       [
         "expo-splash-screen",
         {
