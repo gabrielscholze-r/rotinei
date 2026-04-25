@@ -17,7 +17,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
 } from '../../lib/billing';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 const BUILT_IN_CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
 
@@ -135,6 +135,7 @@ const DEFAULT_TX_FORM: TransactionForm = {
 
 export default function ExpensesScreen() {
   const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string; goalId?: string }>();
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -165,7 +166,8 @@ export default function ExpensesScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [])
+      if (tab === 'metas') setMainTab('metas');
+    }, [tab])
   );
 
   async function load() {

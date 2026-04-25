@@ -277,7 +277,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={goal.id}
                   style={styles.goalPreview}
-                  onPress={() => router.push('/(tabs)/expenses' as any)}
+                  onPress={() => router.push({ pathname: '/(tabs)/expenses', params: { tab: 'metas', goalId: goal.id } } as any)}
                   activeOpacity={0.85}
                 >
                   <View style={styles.goalPreviewHeader}>

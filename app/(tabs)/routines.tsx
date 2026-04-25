@@ -9,10 +9,10 @@ import { useState, useCallback, useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
-import { Routine, RoutineLog } from '../../lib/types';
+import { Routine, RoutineLog, RoutineRepeatMode } from '../../lib/types';
 import {
   getTodayKey, isRoutineForToday, isRoutineCompletedToday,
-  formatRoutineDays, DAY_LABELS,
+  formatRoutineDays, DAY_LABELS, nextOccurrenceDate,
 } from '../../lib/routines';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -35,6 +35,7 @@ interface AddForm {
   minute: string;
   days: number[];
   colorIndex: number;
+  repeat: RoutineRepeatMode;
 }
 
 const DEFAULT_FORM: AddForm = {
@@ -45,6 +46,7 @@ const DEFAULT_FORM: AddForm = {
   minute: '',
   days: [],
   colorIndex: 0,
+  repeat: 'repeat',
 };
 
 
@@ -73,7 +75,7 @@ async function setupNotifications() {
 }
 
 async function scheduleRoutineNotifications(
-  routine: Pick<Routine, 'name' | 'icon' | 'description' | 'time' | 'days'>
+  routine: Pick<Routine, 'name' | 'icon' | 'description' | 'time' | 'days' | 'repeat'>
 ): Promise<string[]> {
   try {
     const { status } = await Notifications.requestPermissionsAsync();
@@ -88,7 +90,16 @@ async function scheduleRoutineNotifications(
       ...(Platform.OS === 'android' && { channelId: 'routines' }),
     };
     const ids: string[] = [];
-    if (routine.days.length === 0) {
+    if ((routine.repeat ?? 'repeat') === 'once') {
+      const id = await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: nextOccurrenceDate(routine.time),
+        } as Notifications.DateTriggerInput,
+      });
+      ids.push(id);
+    } else if (routine.days.length === 0) {
       const id = await Notifications.scheduleNotificationAsync({
         content,
         trigger: {
@@ -178,6 +189,7 @@ export default function RoutinesScreen() {
       minute: m,
       days: routine.days,
       colorIndex: colorIndex >= 0 ? colorIndex : 0,
+      repeat: routine.repeat ?? 'repeat',
     });
     setEditingRoutine(routine);
     setShowAdd(true);
@@ -195,7 +207,14 @@ export default function RoutinesScreen() {
       return;
     }
     const time = `${pad(h)}:${pad(m)}`;
-    const partial = { name: form.name.trim(), icon: form.icon, description: form.description.trim(), time, days: form.days };
+    const partial = {
+      name: form.name.trim(),
+      icon: form.icon,
+      description: form.description.trim(),
+      time,
+      days: form.repeat === 'once' ? [] : form.days,
+      repeat: form.repeat,
+    };
     const notificationIds = await scheduleRoutineNotifications(partial);
     const routine: Routine = {
       id: Date.now().toString(),
@@ -222,7 +241,14 @@ export default function RoutinesScreen() {
       return;
     }
     const time = `${pad(h)}:${pad(m)}`;
-    const partial = { name: form.name.trim(), icon: form.icon, description: form.description.trim(), time, days: form.days };
+    const partial = {
+      name: form.name.trim(),
+      icon: form.icon,
+      description: form.description.trim(),
+      time,
+      days: form.repeat === 'once' ? [] : form.days,
+      repeat: form.repeat,
+    };
     await cancelRoutineNotifications(editingRoutine.notificationIds);
     const notificationIds = editingRoutine.active ? await scheduleRoutineNotifications(partial) : [];
     const updated: Routine = {
@@ -307,7 +333,7 @@ export default function RoutinesScreen() {
                 <Text style={styles.routineEmoji}>{routine.icon}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.routineName, done && styles.routineNameDone]}>{routine.name}</Text>
-                  <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days)}</Text>
+                  <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days, routine.repeat ?? 'repeat')}</Text>
                 </View>
                 {done ? (
                   <Ionicons name="checkmark-circle" size={28} color={Colors.success} />
@@ -341,7 +367,7 @@ export default function RoutinesScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.routineName, !routine.active && styles.routineNameDone]}>{routine.name}</Text>
-                <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days)}</Text>
+                <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days, routine.repeat ?? 'repeat')}</Text>
                 {routine.description ? (
                   <Text style={styles.routineDesc} numberOfLines={1}>{routine.description}</Text>
                 ) : null}
@@ -438,22 +464,51 @@ export default function RoutinesScreen() {
               />
             </View>
 
-            <Text style={styles.label}>Dias da semana</Text>
-            <Text style={styles.hintText}>Deixe vazio para repetir todo dia</Text>
-            <View style={styles.daysRow}>
-              {DAY_LABELS.map((label, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[
-                    styles.dayBtn,
-                    form.days.includes(i) && { backgroundColor: ROUTINE_COLORS[form.colorIndex], borderColor: ROUTINE_COLORS[form.colorIndex] },
-                  ]}
-                  onPress={() => toggleDay(i)}
-                >
-                  <Text style={[styles.dayBtnText, form.days.includes(i) && { color: '#fff' }]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
+            <Text style={styles.label}>Frequência</Text>
+            <View style={styles.repeatRow}>
+              {(['repeat', 'once'] as RoutineRepeatMode[]).map((mode) => {
+                const accentColor = ROUTINE_COLORS[form.colorIndex];
+                const selected = form.repeat === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[
+                      styles.repeatOption,
+                      selected && { borderColor: accentColor, backgroundColor: accentColor + '15' },
+                    ]}
+                    onPress={() => setForm({ ...form, repeat: mode })}
+                  >
+                    <View style={[styles.radioCircle, selected && { borderColor: accentColor }]}>
+                      {selected && <View style={[styles.radioFill, { backgroundColor: accentColor }]} />}
+                    </View>
+                    <Text style={[styles.repeatOptionText, selected && { color: Colors.text, fontWeight: '700' }]}>
+                      {mode === 'repeat' ? 'Repetir' : 'Uma vez'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+
+            {form.repeat !== 'once' && (
+              <>
+                <Text style={styles.label}>Dias da semana</Text>
+                <Text style={styles.hintText}>Deixe vazio para repetir todo dia</Text>
+                <View style={styles.daysRow}>
+                  {DAY_LABELS.map((label, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[
+                        styles.dayBtn,
+                        form.days.includes(i) && { backgroundColor: ROUTINE_COLORS[form.colorIndex], borderColor: ROUTINE_COLORS[form.colorIndex] },
+                      ]}
+                      onPress={() => toggleDay(i)}
+                    >
+                      <Text style={[styles.dayBtnText, form.days.includes(i) && { color: '#fff' }]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
 
             <Text style={styles.label}>Cor</Text>
             <View style={styles.colorRow}>
@@ -640,4 +695,27 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  repeatRow: { flexDirection: 'row', gap: 10 },
+  repeatOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  repeatOptionText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioFill: { width: 9, height: 9, borderRadius: 5 },
 });

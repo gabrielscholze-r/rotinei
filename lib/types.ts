@@ -17,6 +17,8 @@ export interface Medication {
   createdAt: string;
 }
 
+export type RoutineRepeatMode = 'repeat' | 'once';
+
 export interface Routine {
   id: string;
   name: string;
@@ -24,6 +26,7 @@ export interface Routine {
   description?: string;
   time: string; // "HH:MM"
   days: number[]; // [] = every day; 0=Sun..6=Sat
+  repeat: RoutineRepeatMode;
   color: string;
   active: boolean;
   notificationIds: string[];
