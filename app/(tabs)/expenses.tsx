@@ -3,7 +3,7 @@ import {
   Modal, TextInput, Alert, Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -134,6 +134,7 @@ const DEFAULT_TX_FORM: TransactionForm = {
 
 export default function ExpensesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   // Main tab
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
@@ -649,7 +650,7 @@ export default function ExpensesScreen() {
       )}
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: insets.bottom + 24 }]}
         onPress={() => mainTab === 'metas' ? setShowAddGoal(true) : setShowAdd(true)}
       >
         <Ionicons name="add" size={28} color={Colors.white} />

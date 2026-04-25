@@ -1,8 +1,8 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, TextInput, Alert,
+  Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -90,6 +90,7 @@ const pinStyles = StyleSheet.create({
 
 export default function NotesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Public notes
   const [notes, setNotes] = useState<Note[]>([]);
@@ -393,7 +394,7 @@ export default function NotesScreen() {
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+          <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => setShowAdd(true)}>
             <Ionicons name="add" size={28} color={Colors.white} />
           </TouchableOpacity>
         </>
@@ -475,7 +476,7 @@ export default function NotesScreen() {
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={styles.fab} onPress={openNewPrivate}>
+          <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={openNewPrivate}>
             <Ionicons name="add" size={28} color={Colors.white} />
           </TouchableOpacity>
         </>
@@ -493,37 +494,39 @@ export default function NotesScreen() {
               <Text style={styles.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
-          <View style={[styles.noteEditor, { backgroundColor: NOTE_COLORS[colorIndex] }]}>
-            <TextInput
-              style={styles.editorTitle}
-              placeholder="Título"
-              placeholderTextColor={Colors.textSecondary}
-              value={title}
-              onChangeText={setTitle}
-              multiline
-            />
-            <TextInput
-              style={styles.editorContent}
-              placeholder="Escreva aqui..."
-              placeholderTextColor={Colors.textSecondary}
-              value={content}
-              onChangeText={setContent}
-              multiline
-              textAlignVertical="top"
-              autoFocus
-            />
-          </View>
-          <View style={styles.colorBar}>
-            {NOTE_COLORS.map((c, i) => (
-              <TouchableOpacity
-                key={c}
-                style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
-                onPress={() => setColorIndex(i)}
-              >
-                {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
-              </TouchableOpacity>
-            ))}
-          </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.noteEditor, { backgroundColor: NOTE_COLORS[colorIndex] }]}>
+              <TextInput
+                style={styles.editorTitle}
+                placeholder="Título"
+                placeholderTextColor={Colors.textSecondary}
+                value={title}
+                onChangeText={setTitle}
+                multiline
+              />
+              <TextInput
+                style={styles.editorContent}
+                placeholder="Escreva aqui..."
+                placeholderTextColor={Colors.textSecondary}
+                value={content}
+                onChangeText={setContent}
+                multiline
+                textAlignVertical="top"
+                autoFocus
+              />
+            </View>
+            <View style={styles.colorBar}>
+              {NOTE_COLORS.map((c, i) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
+                  onPress={() => setColorIndex(i)}
+                >
+                  {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -542,26 +545,28 @@ export default function NotesScreen() {
               <Text style={styles.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
-          <View style={[styles.noteEditor, { backgroundColor: '#F8FAFC' }]}>
-            <TextInput
-              style={styles.editorTitle}
-              placeholder="Título (ex: Gmail, Banco...)"
-              placeholderTextColor={Colors.textSecondary}
-              value={privateTitle}
-              onChangeText={setPrivateTitle}
-              multiline
-            />
-            <TextInput
-              style={styles.editorContent}
-              placeholder="Anote aqui seus dados, senhas..."
-              placeholderTextColor={Colors.textSecondary}
-              value={privateContent}
-              onChangeText={setPrivateContent}
-              multiline
-              textAlignVertical="top"
-              autoFocus
-            />
-          </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.noteEditor, { backgroundColor: '#F8FAFC' }]}>
+              <TextInput
+                style={styles.editorTitle}
+                placeholder="Título (ex: Gmail, Banco...)"
+                placeholderTextColor={Colors.textSecondary}
+                value={privateTitle}
+                onChangeText={setPrivateTitle}
+                multiline
+              />
+              <TextInput
+                style={styles.editorContent}
+                placeholder="Anote aqui seus dados, senhas..."
+                placeholderTextColor={Colors.textSecondary}
+                value={privateContent}
+                onChangeText={setPrivateContent}
+                multiline
+                textAlignVertical="top"
+                autoFocus
+              />
+            </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

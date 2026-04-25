@@ -1,10 +1,10 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, KeyboardAvoidingView, Platform,
+  TextInput, Alert, Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
@@ -13,10 +13,11 @@ import { TodoList, TodoItem } from '../../lib/types';
 export default function TodoListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [list, setList] = useState<TodoList | null>(null);
   const [allLists, setAllLists] = useState<TodoList[]>([]);
+  const [showAddItem, setShowAddItem] = useState(false);
   const [newItem, setNewItem] = useState('');
-  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     load();
@@ -36,7 +37,7 @@ export default function TodoListScreen() {
     setList(updated);
   }
 
-  function addItem() {
+  function addItemFromModal() {
     if (!newItem.trim() || !list) return;
     const item: TodoItem = {
       id: Date.now().toString(),
@@ -46,6 +47,7 @@ export default function TodoListScreen() {
     };
     persist({ ...list, items: [...list.items, item] });
     setNewItem('');
+    setShowAddItem(false);
   }
 
   function toggleItem(itemId: string) {
@@ -96,82 +98,93 @@ export default function TodoListScreen() {
         )}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-        >
-          {list.items.length === 0 && (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>Lista vazia. Adicione o primeiro item!</Text>
-            </View>
-          )}
+        {list.items.length === 0 && (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>Lista vazia. Adicione o primeiro item!</Text>
+          </View>
+        )}
 
-          {pending.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.item}
-              onPress={() => toggleItem(item.id)}
-              activeOpacity={0.7}
-            >
-              <TouchableOpacity
-                style={[styles.checkbox, { borderColor: list.color }]}
-                onPress={() => toggleItem(item.id)}
-              >
-              </TouchableOpacity>
-              <Text style={styles.itemText}>{item.text}</Text>
-              <TouchableOpacity onPress={() => deleteItem(item.id)} hitSlop={8}>
-                <Ionicons name="close" size={18} color={Colors.textTertiary} />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-
-          {done.length > 0 && (
-            <>
-              <Text style={styles.sectionLabel}>Concluídos ({done.length})</Text>
-              {done.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.item, styles.itemDone]}
-                  onPress={() => toggleItem(item.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.checkbox, styles.checkboxDone, { backgroundColor: list.color, borderColor: list.color }]}>
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  </View>
-                  <Text style={styles.itemTextDone}>{item.text}</Text>
-                  <TouchableOpacity onPress={() => deleteItem(item.id)} hitSlop={8}>
-                    <Ionicons name="close" size={18} color={Colors.textTertiary} />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
-        </ScrollView>
-
-        <View style={styles.inputBar}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder="Adicionar item..."
-            placeholderTextColor={Colors.textTertiary}
-            value={newItem}
-            onChangeText={setNewItem}
-            onSubmitEditing={addItem}
-            returnKeyType="done"
-          />
+        {pending.map((item) => (
           <TouchableOpacity
-            style={[styles.addItemBtn, { backgroundColor: list.color }]}
-            onPress={addItem}
+            key={item.id}
+            style={styles.item}
+            onPress={() => toggleItem(item.id)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="add" size={22} color="#fff" />
+            <TouchableOpacity
+              style={[styles.checkbox, { borderColor: list.color }]}
+              onPress={() => toggleItem(item.id)}
+            >
+            </TouchableOpacity>
+            <Text style={styles.itemText}>{item.text}</Text>
+            <TouchableOpacity onPress={() => deleteItem(item.id)} hitSlop={8}>
+              <Ionicons name="close" size={18} color={Colors.textTertiary} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+        ))}
+
+        {done.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Concluídos ({done.length})</Text>
+            {done.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.item, styles.itemDone]}
+                onPress={() => toggleItem(item.id)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, styles.checkboxDone, { backgroundColor: list.color, borderColor: list.color }]}>
+                  <Ionicons name="checkmark" size={14} color="#fff" />
+                </View>
+                <Text style={styles.itemTextDone}>{item.text}</Text>
+                <TouchableOpacity onPress={() => deleteItem(item.id)} hitSlop={8}>
+                  <Ionicons name="close" size={18} color={Colors.textTertiary} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+      </ScrollView>
+
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: list.color, bottom: insets.bottom + 24 }]}
+        onPress={() => setShowAddItem(true)}
+      >
+        <Ionicons name="add" size={28} color="#fff" />
+      </TouchableOpacity>
+
+      <Modal visible={showAddItem} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Novo item</Text>
+            <TouchableOpacity onPress={() => { setShowAddItem(false); setNewItem(''); }} hitSlop={8}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ padding: 20 }}>
+            <TextInput
+              autoFocus
+              style={styles.modalInput}
+              placeholder="Nome do item..."
+              placeholderTextColor={Colors.textTertiary}
+              value={newItem}
+              onChangeText={setNewItem}
+              onSubmitEditing={addItemFromModal}
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: list.color }]}
+              onPress={addItemFromModal}
+            >
+              <Text style={styles.saveBtnText}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -228,30 +241,37 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textDecorationLine: 'line-through',
   },
-  inputBar: {
-    flexDirection: 'row',
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    padding: 16,
-    gap: 10,
-    backgroundColor: Colors.card,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    justifyContent: 'center',
+    elevation: 4,
   },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.background,
+  modal: { flex: 1, backgroundColor: Colors.background },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  modalInput: {
+    backgroundColor: Colors.card,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     fontSize: 15,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginBottom: 16,
   },
-  addItemBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  saveBtn: { borderRadius: 14, padding: 16, alignItems: 'center' },
+  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

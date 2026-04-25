@@ -2,7 +2,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
@@ -16,6 +16,7 @@ const LIST_ICONS = ['🛒', '🏠', '💼', '🏃', '📚', '🎯', '🍔', '�
 
 export default function TodosScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [lists, setLists] = useState<TodoList[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
@@ -122,7 +123,7 @@ export default function TodosScreen() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => setShowAdd(true)}>
         <Ionicons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
 

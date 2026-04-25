@@ -2,7 +2,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, TextInput, Alert, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
@@ -119,6 +119,7 @@ async function cancelRoutineNotifications(ids: string[]) {
 
 export default function RoutinesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -309,7 +310,7 @@ export default function RoutinesScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.fab} onPress={openAdd}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={openAdd}>
         <Ionicons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
 

@@ -1,5 +1,6 @@
 import {
   View, StyleSheet, TextInput, TouchableOpacity, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,36 +90,41 @@ export default function NoteDetailScreen() {
         </View>
       </View>
 
-      <TextInput
-        style={styles.titleInput}
-        placeholder="Título"
-        placeholderTextColor={Colors.textSecondary}
-        value={title}
-        onChangeText={(v) => { setTitle(v); setChanged(true); }}
-        multiline
-      />
-      <TextInput
-        style={styles.contentInput}
-        placeholder="Escreva aqui..."
-        placeholderTextColor={Colors.textSecondary}
-        value={content}
-        onChangeText={(v) => { setContent(v); setChanged(true); }}
-        multiline
-        textAlignVertical="top"
-        autoFocus={!content}
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TextInput
+          style={styles.titleInput}
+          placeholder="Título"
+          placeholderTextColor={Colors.textSecondary}
+          value={title}
+          onChangeText={(v) => { setTitle(v); setChanged(true); }}
+          multiline
+        />
+        <TextInput
+          style={styles.contentInput}
+          placeholder="Escreva aqui..."
+          placeholderTextColor={Colors.textSecondary}
+          value={content}
+          onChangeText={(v) => { setContent(v); setChanged(true); }}
+          multiline
+          textAlignVertical="top"
+          autoFocus={!content}
+        />
 
-      <View style={styles.colorBar}>
-        {NOTE_COLORS.map((c, i) => (
-          <TouchableOpacity
-            key={c}
-            style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
-            onPress={() => { setColorIndex(i); setChanged(true); }}
-          >
-            {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={styles.colorBar}>
+          {NOTE_COLORS.map((c, i) => (
+            <TouchableOpacity
+              key={c}
+              style={[styles.colorDot, { backgroundColor: c }, colorIndex === i && styles.colorDotSelected]}
+              onPress={() => { setColorIndex(i); setChanged(true); }}
+            >
+              {colorIndex === i && <Ionicons name="checkmark" size={14} color={Colors.textSecondary} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
