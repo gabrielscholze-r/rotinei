@@ -5,12 +5,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note, PrivateNote } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { RichText, Toolbar, useEditorBridge } from '@10play/tentap-editor';
+import { stripHtml } from '../../lib/textFormatting';
 
 function PinDots({ entered, total = 4 }: { entered: number; total?: number }) {
   return (
@@ -85,18 +87,31 @@ const pinStyles = StyleSheet.create({
 
 
 
+const EDITOR_THEME = {
+  toolbar: {
+    toolbarBody: {
+      borderTopColor: Colors.border,
+      borderBottomColor: Colors.border,
+      backgroundColor: Colors.card,
+    },
+    toolbarButton: { backgroundColor: Colors.card },
+    iconWrapper: { backgroundColor: Colors.card },
+    icon: { tintColor: Colors.textSecondary },
+    iconActive: { tintColor: Colors.primary },
+    iconWrapperActive: { backgroundColor: Colors.primaryLighter },
+    hidden: { display: 'none' as const },
+  },
+};
+
 export default function NotesScreen() {
   const router = useRouter();
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
   const [search, setSearch] = useState('');
 
-  
   const [notesTab, setNotesTab] = useState<'notas' | 'privado'>('notas');
 
-  
   const [pin, setPin] = useState<string | null>(null);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
@@ -107,7 +122,22 @@ export default function NotesScreen() {
   const [showAddPrivate, setShowAddPrivate] = useState(false);
   const [editingPrivate, setEditingPrivate] = useState<PrivateNote | null>(null);
   const [privateTitle, setPrivateTitle] = useState('');
-  const [privateContent, setPrivateContent] = useState('');
+
+  const noteEditor = useEditorBridge({ autofocus: true, avoidIosKeyboard: true, theme: EDITOR_THEME });
+  const privateEditor = useEditorBridge({ autofocus: true, avoidIosKeyboard: true, theme: EDITOR_THEME });
+
+  useEffect(() => {
+    if (!showAddPrivate || !editingPrivate?.content) return;
+    const content = editingPrivate.content;
+    let applied = false;
+    const unsub = privateEditor._subscribeToEditorStateUpdate(() => {
+      if (!applied) {
+        applied = true;
+        privateEditor.setContent(content);
+      }
+    });
+    return unsub;
+  }, [showAddPrivate, editingPrivate?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -143,27 +173,24 @@ export default function NotesScreen() {
     setPrivateNotes(updated);
   }
 
-  function createNote() {
-    if (!title.trim() && !content.trim()) {
+  async function createNote() {
+    const html = await noteEditor.getHTML();
+    const isEmpty = !title.trim() && stripHtml(html).length === 0;
+    if (isEmpty) {
       Alert.alert('Erro', 'Adicione um título ou conteúdo.');
       return;
     }
     const note: Note = {
       id: Date.now().toString(),
       title: title.trim(),
-      content: content.trim(),
+      content: html,
       color: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     saveNotes([note, ...notes]);
-    resetForm();
-    setShowAdd(false);
-  }
-
-  function resetForm() {
     setTitle('');
-    setContent('');
+    setShowAdd(false);
   }
 
   function deleteNote(id: string) {
@@ -183,26 +210,26 @@ export default function NotesScreen() {
   function openEditPrivate(note: PrivateNote) {
     setEditingPrivate(note);
     setPrivateTitle(note.title);
-    setPrivateContent(note.content);
     setShowAddPrivate(true);
   }
 
   function openNewPrivate() {
     setEditingPrivate(null);
     setPrivateTitle('');
-    setPrivateContent('');
     setShowAddPrivate(true);
   }
 
-  function savePrivateNote() {
-    if (!privateTitle.trim() && !privateContent.trim()) {
+  async function savePrivateNote() {
+    const html = await privateEditor.getHTML();
+    const isEmpty = !privateTitle.trim() && stripHtml(html).length === 0;
+    if (isEmpty) {
       Alert.alert('Erro', 'Adicione um título ou conteúdo.');
       return;
     }
     if (editingPrivate) {
       const updated = privateNotes.map((n) =>
         n.id === editingPrivate.id
-          ? { ...n, title: privateTitle.trim(), content: privateContent.trim(), updatedAt: new Date().toISOString() }
+          ? { ...n, title: privateTitle.trim(), content: html, updatedAt: new Date().toISOString() }
           : n
       );
       savePrivateNotes(updated);
@@ -210,7 +237,7 @@ export default function NotesScreen() {
       const note: PrivateNote = {
         id: Date.now().toString(),
         title: privateTitle.trim(),
-        content: privateContent.trim(),
+        content: html,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -378,7 +405,7 @@ export default function NotesScreen() {
                     </TouchableOpacity>
                   </View>
                   {note.content ? (
-                    <Text style={styles.noteContent} numberOfLines={6}>{note.content}</Text>
+                    <Text style={styles.noteContent} numberOfLines={6}>{stripHtml(note.content)}</Text>
                   ) : null}
                   <Text style={styles.noteDate}>{formatDate(note.updatedAt)}</Text>
                 </TouchableOpacity>
@@ -458,7 +485,7 @@ export default function NotesScreen() {
                     </TouchableOpacity>
                   </View>
                   {note.content ? (
-                    <Text style={styles.privateContent} numberOfLines={4}>{note.content}</Text>
+                    <Text style={styles.privateContent} numberOfLines={4}>{stripHtml(note.content)}</Text>
                   ) : null}
                   <Text style={styles.noteDate}>{formatDate(note.updatedAt)}</Text>
                 </TouchableOpacity>
@@ -474,7 +501,7 @@ export default function NotesScreen() {
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => { setShowAdd(false); resetForm(); }}>
+            <TouchableOpacity onPress={() => { setShowAdd(false); setTitle(''); }}>
               <Text style={styles.cancelBtn}>Cancelar</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Nova nota</Text>
@@ -482,32 +509,25 @@ export default function NotesScreen() {
               <Text style={styles.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.noteEditor, { backgroundColor: Colors.background }]}>
-              <TextInput
-                style={styles.editorTitle}
-                placeholder="Título"
-                placeholderTextColor={Colors.textSecondary}
-                value={title}
-                onChangeText={setTitle}
-                multiline
-              />
-              <TextInput
-                style={styles.editorContent}
-                placeholder="Escreva aqui..."
-                placeholderTextColor={Colors.textSecondary}
-                value={content}
-                onChangeText={setContent}
-                multiline
-                textAlignVertical="top"
-                autoFocus
-              />
-            </View>
+          <TextInput
+            style={styles.editorTitle}
+            placeholder="Título"
+            placeholderTextColor={Colors.textSecondary}
+            value={title}
+            onChangeText={setTitle}
+            multiline
+          />
+          <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.toolbarKAV}
+          >
+            <Toolbar editor={noteEditor} />
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
-      
+
       <Modal visible={showAddPrivate} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -522,27 +542,20 @@ export default function NotesScreen() {
               <Text style={styles.saveText}>Salvar</Text>
             </TouchableOpacity>
           </View>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.noteEditor, { backgroundColor: '#F8FAFC' }]}>
-              <TextInput
-                style={styles.editorTitle}
-                placeholder="Título (ex: Gmail, Banco...)"
-                placeholderTextColor={Colors.textSecondary}
-                value={privateTitle}
-                onChangeText={setPrivateTitle}
-                multiline
-              />
-              <TextInput
-                style={styles.editorContent}
-                placeholder="Anote aqui seus dados, senhas..."
-                placeholderTextColor={Colors.textSecondary}
-                value={privateContent}
-                onChangeText={setPrivateContent}
-                multiline
-                textAlignVertical="top"
-                autoFocus
-              />
-            </View>
+          <TextInput
+            style={styles.editorTitle}
+            placeholder="Título (ex: Gmail, Banco...)"
+            placeholderTextColor={Colors.textSecondary}
+            value={privateTitle}
+            onChangeText={setPrivateTitle}
+            multiline
+          />
+          <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.toolbarKAV}
+          >
+            <Toolbar editor={privateEditor} />
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -671,17 +684,17 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   cancelBtn: { fontSize: 16, color: Colors.textSecondary },
   saveText: { fontSize: 16, fontWeight: '700', color: Colors.primary },
-  noteEditor: { flex: 1, padding: 20 },
   editorTitle: {
     fontSize: 22,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
-  editorContent: {
-    fontSize: 16,
-    color: Colors.text,
-    lineHeight: 24,
-    flex: 1,
+  toolbarKAV: {
+    position: 'absolute',
+    width: '100%',
+    bottom: 0,
   },
 });

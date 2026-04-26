@@ -1,49 +1,76 @@
 import {
   View, StyleSheet, TextInput, TouchableOpacity, Alert,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { RichText, Toolbar, useEditorBridge } from '@10play/tentap-editor';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note } from '../../lib/types';
 
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const [note, setNote] = useState<Note | null>(null);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [changed, setChanged] = useState(false);
 
   useEffect(() => {
-    load();
+    getItem<Note[]>(KEYS.NOTES).then((notes) => {
+      const all = notes ?? [];
+      setAllNotes(all);
+      setNote(all.find((n) => n.id === id) ?? null);
+    });
   }, [id]);
 
-  async function load() {
-    const notes = await getItem<Note[]>(KEYS.NOTES);
-    const all = notes ?? [];
-    setAllNotes(all);
-    const n = all.find((n) => n.id === id);
-    if (n) {
-      setNote(n);
-      setTitle(n.title);
-      setContent(n.content);
-    }
+  if (!note) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
   }
+  return <NoteEditorView note={note} allNotes={allNotes} />;
+}
+
+function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
+  const router = useRouter();
+  const [title, setTitle] = useState(note.title);
+  const [changed, setChanged] = useState(false);
+  const [currentNotes, setCurrentNotes] = useState(allNotes);
+
+  const editor = useEditorBridge({
+    avoidIosKeyboard: true,
+    initialContent: note.content || '',
+    onChange: () => setChanged(true),
+    theme: {
+      toolbar: {
+        toolbarBody: {
+          borderTopColor: Colors.border,
+          borderBottomColor: Colors.border,
+          backgroundColor: Colors.card,
+        },
+        toolbarButton: { backgroundColor: Colors.card },
+        iconWrapper: { backgroundColor: Colors.card },
+        icon: { tintColor: Colors.textSecondary },
+        iconActive: { tintColor: Colors.primary },
+        iconWrapperActive: { backgroundColor: Colors.primaryLighter },
+        hidden: { display: 'none' },
+      },
+    },
+  });
+
 
   async function save() {
-    if (!note) return;
+    const html = await editor.getHTML();
     const updated: Note = {
       ...note,
       title,
-      content,
+      content: html,
       updatedAt: new Date().toISOString(),
     };
-    const updatedAll = allNotes.map((n) => (n.id === id ? updated : n));
+    const updatedAll = currentNotes.map((n) => (n.id === note.id ? updated : n));
     await setItem(KEYS.NOTES, updatedAll);
     setChanged(false);
     router.back();
@@ -56,14 +83,12 @@ export default function NoteDetailScreen() {
         text: 'Excluir',
         style: 'destructive',
         onPress: async () => {
-          await setItem(KEYS.NOTES, allNotes.filter((n) => n.id !== id));
+          await setItem(KEYS.NOTES, currentNotes.filter((n) => n.id !== note.id));
           router.back();
         },
       },
     ]);
   }
-
-  if (!note) return null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
@@ -83,29 +108,26 @@ export default function NoteDetailScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <TextInput
-          style={styles.titleInput}
-          placeholder="Título"
-          placeholderTextColor={Colors.textSecondary}
-          value={title}
-          onChangeText={(v) => { setTitle(v); setChanged(true); }}
-          multiline
-        />
-        <TextInput
-          style={styles.contentInput}
-          placeholder="Escreva aqui..."
-          placeholderTextColor={Colors.textSecondary}
-          value={content}
-          onChangeText={(v) => { setContent(v); setChanged(true); }}
-          multiline
-          textAlignVertical="top"
-          autoFocus={!content}
-        />
+      <TextInput
+        style={styles.titleInput}
+        placeholder="Título"
+        placeholderTextColor={Colors.textSecondary}
+        value={title}
+        onChangeText={(v) => { setTitle(v); setChanged(true); }}
+        multiline
+      />
 
+      <RichText
+        editor={editor}
+        style={{ flex: 1, backgroundColor: Colors.background }}
+        onLoadEnd={() => editor.injectCSS('.ProseMirror { padding: 12px 20px 80px; }', 'prosemirror-padding')}
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.toolbarKAV}
+      >
+        <Toolbar editor={editor} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -135,13 +157,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  contentInput: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.text,
-    lineHeight: 24,
-    paddingHorizontal: 20,
+  toolbarKAV: {
+    position: 'absolute',
+    width: '100%',
+    bottom: 0,
   },
 });
