@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RichText, Toolbar, useEditorBridge } from '@10play/tentap-editor';
 import { Colors } from '../../constants/colors';
@@ -39,11 +39,16 @@ function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
   const [title, setTitle] = useState(note.title);
   const [changed, setChanged] = useState(false);
   const [currentNotes, setCurrentNotes] = useState(allNotes);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
 
   const editor = useEditorBridge({
     avoidIosKeyboard: true,
     initialContent: note.content || '',
-    onChange: () => setChanged(true),
+    onChange: () => { if (isMounted.current) setChanged(true); },
     theme: {
       toolbar: {
         toolbarBody: {

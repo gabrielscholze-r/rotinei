@@ -190,6 +190,7 @@ export default function NotesScreen() {
     };
     saveNotes([note, ...notes]);
     setTitle('');
+    noteEditor.setContent('');
     setShowAdd(false);
   }
 
@@ -501,7 +502,7 @@ export default function NotesScreen() {
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => { setShowAdd(false); setTitle(''); }}>
+            <TouchableOpacity onPress={() => { setShowAdd(false); setTitle(''); noteEditor.setContent(''); }}>
               <Text style={styles.cancelBtn}>Cancelar</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Nova nota</Text>
@@ -517,7 +518,7 @@ export default function NotesScreen() {
             onChangeText={setTitle}
             multiline
           />
-          <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} />
+          {showAdd && <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} />}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.toolbarKAV}
@@ -550,7 +551,7 @@ export default function NotesScreen() {
             onChangeText={setPrivateTitle}
             multiline
           />
-          <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} />
+          {showAddPrivate && <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} />}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.toolbarKAV}
