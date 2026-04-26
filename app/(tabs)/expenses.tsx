@@ -135,7 +135,7 @@ const DEFAULT_TX_FORM: TransactionForm = {
 
 export default function ExpensesScreen() {
   const router = useRouter();
-  const { tab } = useLocalSearchParams<{ tab?: string; goalId?: string }>();
+  const { tab, from } = useLocalSearchParams<{ tab?: string; goalId?: string; from?: string }>();
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -369,7 +369,7 @@ export default function ExpensesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>{mainTab === 'gastos' ? 'Gastos' : 'Metas'}</Text>
