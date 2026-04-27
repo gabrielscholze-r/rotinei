@@ -159,6 +159,20 @@ export const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   other: '#6B7280',
 };
 
+export type ChartPeriodType = 'billing_period' | 'calendar_month' | 'custom_range';
+
+export interface ExpenseChart {
+  id: string;
+  name: string;
+  periodType: ChartPeriodType;
+  billingPeriodKey?: string;
+  calendarMonth?: string;
+  rangeStart?: string;
+  rangeEnd?: string;
+  sectionIds: string[] | null;
+  createdAt: string;
+}
+
 export type WidgetType =
   | 'routines_today'
   | 'expense_summary'

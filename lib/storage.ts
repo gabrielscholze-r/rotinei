@@ -27,4 +27,5 @@ export const KEYS = {
   PRIVATE_PIN: 'private_pin',
   HOME_WIDGETS: 'home_widgets',
   EXPENSE_SECTIONS: 'expense_sections',
+  EXPENSE_CHARTS: 'expense_charts',
 };

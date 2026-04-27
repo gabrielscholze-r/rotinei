@@ -1,19 +1,22 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, TextInput, Alert, Platform, ActivityIndicator,
+  Modal, TextInput, Alert, Platform, ActivityIndicator, FlatList,
+  Animated, NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Expense, ExpenseCategory, CustomCategory, Goal, GoalTransaction,
-  ExpenseSection,
+  ExpenseSection, ExpenseChart,
   CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_COLORS,
 } from '../../lib/types';
+import { ChartWidget } from '../../components/expenses/ChartWidget';
+import { CreateChartModal } from '../../components/expenses/CreateChartModal';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
@@ -187,6 +190,28 @@ export default function ExpensesScreen() {
   const [showGoalDeadline, setShowGoalDeadline] = useState(false);
   const [goalDeadlineDate, setGoalDeadlineDate] = useState(new Date());
 
+  const [charts, setCharts] = useState<ExpenseChart[]>([]);
+  const [showCreateChart, setShowCreateChart] = useState(false);
+
+  const detailHeaderAnim = useRef(new Animated.Value(1)).current;
+  const lastDetailScrollY = useRef(0);
+
+  useEffect(() => {
+    lastDetailScrollY.current = 0;
+    Animated.timing(detailHeaderAnim, { toValue: 1, duration: 0, useNativeDriver: false }).start();
+  }, [selectedSection?.id]);
+
+  function handleDetailScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const y = e.nativeEvent.contentOffset.y;
+    const dy = y - lastDetailScrollY.current;
+    lastDetailScrollY.current = y;
+    if (dy > 8 && y > 40) {
+      Animated.timing(detailHeaderAnim, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+    } else if (dy < -8) {
+      Animated.timing(detailHeaderAnim, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+    }
+  }
+
   useFocusEffect(
     useCallback(() => {
       load();
@@ -195,12 +220,13 @@ export default function ExpensesScreen() {
   );
 
   async function load() {
-    const [data, day, cats, goalsData, sectionsData] = await Promise.all([
+    const [data, day, cats, goalsData, sectionsData, chartsData] = await Promise.all([
       getItem<Expense[]>(KEYS.EXPENSES),
       getItem<number>(KEYS.BILLING_CYCLE_DAY),
       getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
       getItem<Goal[]>(KEYS.GOALS),
       getItem<ExpenseSection[]>(KEYS.EXPENSE_SECTIONS),
+      getItem<ExpenseChart[]>(KEYS.EXPENSE_CHARTS),
     ]);
     const resolvedDay = day ?? 1;
     setCycleDay(resolvedDay);
@@ -209,6 +235,7 @@ export default function ExpensesScreen() {
     setSelectedPeriod(currentPeriodKey(resolvedDay));
     setGoals(goalsData ?? []);
     setSections(sectionsData ?? []);
+    setCharts(chartsData ?? []);
   }
 
   async function saveExpenses(updated: Expense[]) {
@@ -224,6 +251,23 @@ export default function ExpensesScreen() {
   async function saveSections(updated: ExpenseSection[]) {
     await setItem(KEYS.EXPENSE_SECTIONS, updated);
     setSections(updated);
+  }
+
+  async function saveCharts(updated: ExpenseChart[]) {
+    await setItem(KEYS.EXPENSE_CHARTS, updated);
+    setCharts(updated);
+  }
+
+  function handleCreateChart(chart: ExpenseChart) {
+    saveCharts([chart, ...charts]);
+    setShowCreateChart(false);
+  }
+
+  function handleDeleteChart(id: string) {
+    Alert.alert('Excluir gráfico', 'Tem certeza que deseja excluir este gráfico?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: () => saveCharts(charts.filter((c) => c.id !== id)) },
+    ]);
   }
 
   function createSection() {
@@ -516,9 +560,14 @@ export default function ExpensesScreen() {
             </TouchableOpacity>
           </View>
         ) : mainTab === 'gastos' ? (
-          <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
-            <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowCreateChart(true)}>
+              <Ionicons name="pie-chart-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
+              <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={{ width: 40 }} />
         )}
@@ -545,6 +594,26 @@ export default function ExpensesScreen() {
       {mainTab === 'gastos' && !selectedSection ? (
         /* ── Sections List ── */
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          {charts.length > 0 && (
+            <FlatList
+              horizontal
+              data={charts}
+              keyExtractor={(c) => c.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 16, gap: 12 }}
+              style={{ marginHorizontal: -20, paddingHorizontal: 20, marginBottom: 4 }}
+              renderItem={({ item }) => (
+                <ChartWidget
+                  chart={item}
+                  expenses={expenses}
+                  sections={sections}
+                  customCategories={customCategories}
+                  cycleDay={cycleDay}
+                  onDelete={handleDeleteChart}
+                />
+              )}
+            />
+          )}
           {sectionStats.length === 0 && (
             <View style={styles.empty}>
               <Ionicons name="folder-open-outline" size={56} color={Colors.textTertiary} />
@@ -577,21 +646,27 @@ export default function ExpensesScreen() {
         </ScrollView>
       ) : mainTab === 'gastos' ? (
         <>
-          <View style={styles.monthNav}>
-            <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
-              <Ionicons name="chevron-back" size={22} color={Colors.primary} />
-            </TouchableOpacity>
-            <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
-            <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
-              <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
-            </TouchableOpacity>
-          </View>
+          <Animated.View style={{
+            overflow: 'hidden',
+            opacity: detailHeaderAnim,
+            maxHeight: detailHeaderAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
+          }}>
+            <View style={styles.monthNav}>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
+                <Ionicons name="chevron-back" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
+                <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.totalCard}>
-            <Text style={styles.totalLabel}>Total do período</Text>
-            <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
-            <Text style={styles.totalCount}>{periodExpenses.length} lançamentos</Text>
-          </View>
+            <View style={styles.totalCard}>
+              <Text style={styles.totalLabel}>Total do período</Text>
+              <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
+              <Text style={styles.totalCount}>{periodExpenses.length} lançamentos</Text>
+            </View>
+          </Animated.View>
 
           <View style={styles.tabs}>
             <TouchableOpacity
@@ -637,7 +712,12 @@ export default function ExpensesScreen() {
             </View>
           )}
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scroll}
+            onScroll={handleDetailScroll}
+            scrollEventThrottle={16}
+          >
             {viewMode === 'list' && categoryFilter && (
               <TouchableOpacity style={styles.filterChip} onPress={() => setCategoryFilter(null)}>
                 <Text style={styles.filterChipText}>
@@ -1307,6 +1387,16 @@ export default function ExpensesScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      <CreateChartModal
+        visible={showCreateChart}
+        onClose={() => setShowCreateChart(false)}
+        onSave={handleCreateChart}
+        sections={sections}
+        cycleDay={cycleDay}
+        expenses={expenses}
+        customCategories={customCategories}
+      />
     </SafeAreaView>
   );
 }
