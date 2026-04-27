@@ -1,6 +1,6 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, TextInput, Alert, Platform,
+  Modal, TextInput, Alert, Platform, ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,9 @@ import {
   currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
 } from '../../lib/billing';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
+import { parseNubankCSV, importRowsToExpenses, ImportRow } from '../../lib/csvImport';
 
 const BUILT_IN_CATEGORIES = Object.keys(CATEGORY_LABELS) as ExpenseCategory[];
 
@@ -153,6 +156,11 @@ export default function ExpensesScreen() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
+  const [showImport, setShowImport] = useState(false);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
+
   const [goals, setGoals] = useState<Goal[]>([]);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [showGoalEmoji, setShowGoalEmoji] = useState(false);
@@ -268,6 +276,55 @@ export default function ExpensesScreen() {
 
   
 
+  async function pickAndParseCSV() {
+    try {
+      setImportLoading(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'text/plain', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const uri = result.assets[0].uri;
+      const content = await new File(uri).text();
+      const rows = parseNubankCSV(content);
+      if (rows.length === 0) {
+        Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo está no formato Nubank (date, title, amount).');
+        return;
+      }
+      setImportRows(rows);
+      setShowImport(true);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível ler o arquivo.');
+    } finally {
+      setImportLoading(false);
+    }
+  }
+
+  function toggleImportRow(index: number) {
+    setImportRows((prev) =>
+      prev.map((r, i) => (i === index ? { ...r, selected: !r.selected } : r))
+    );
+  }
+
+  function setImportRowCategory(index: number, category: ExpenseCategory) {
+    setImportRows((prev) =>
+      prev.map((r, i) => (i !== index ? r : { ...r, category }))
+    );
+    setEditingCategoryIndex(null);
+  }
+
+  async function confirmImport() {
+    const newExpenses = importRowsToExpenses(importRows);
+    if (newExpenses.length === 0) {
+      Alert.alert('Nenhum item', 'Selecione ao menos um lançamento para importar.');
+      return;
+    }
+    await saveExpenses([...newExpenses, ...expenses]);
+    setShowImport(false);
+    setImportRows([]);
+    Alert.alert('Importado!', `${newExpenses.length} lançamento${newExpenses.length !== 1 ? 's' : ''} adicionado${newExpenses.length !== 1 ? 's' : ''}.`);
+  }
+
   function addGoal() {
     if (!goalForm.name.trim()) {
       Alert.alert('Erro', 'Informe o nome da meta.');
@@ -374,9 +431,16 @@ export default function ExpensesScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>{mainTab === 'gastos' ? 'Gastos' : 'Metas'}</Text>
         {mainTab === 'gastos' ? (
-          <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
-            <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity style={styles.settingsBtn} onPress={pickAndParseCSV} disabled={importLoading}>
+              {importLoading
+                ? <ActivityIndicator size={18} color={Colors.primary} />
+                : <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
+              <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={{ width: 40 }} />
         )}
@@ -969,6 +1033,125 @@ export default function ExpensesScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* ── CSV Import Review Modal ── */}
+      <Modal visible={showImport} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Importar CSV</Text>
+            <TouchableOpacity onPress={() => { setShowImport(false); setImportRows([]); }}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* summary bar */}
+          <View style={styles.importSummary}>
+            <View style={styles.importSummaryItem}>
+              <Text style={styles.importSummaryValue}>
+                {importRows.filter((r) => r.selected).length}
+              </Text>
+              <Text style={styles.importSummaryLabel}>selecionados</Text>
+            </View>
+            <View style={styles.importSummaryDivider} />
+            <View style={styles.importSummaryItem}>
+              <Text style={styles.importSummaryValue}>
+                {formatCurrency(importRows.filter((r) => r.selected).reduce((s, r) => s + r.amount, 0))}
+              </Text>
+              <Text style={styles.importSummaryLabel}>total</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.importSelectAll}
+              onPress={() => {
+                const allSelected = importRows.every((r) => r.selected);
+                setImportRows((prev) => prev.map((r) => ({ ...r, selected: !allSelected })));
+              }}
+            >
+              <Text style={styles.importSelectAllText}>
+                {importRows.every((r) => r.selected) ? 'Desmarcar todos' : 'Marcar todos'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.importHint}>
+            Toque na categoria para alterá-la. Desmarque itens que não deseja importar.
+          </Text>
+
+          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            {importRows.map((row, index) => (
+              <View key={index}>
+                <View
+                  style={[styles.importRow, !row.selected && styles.importRowDisabled]}
+                >
+                  <TouchableOpacity onPress={() => toggleImportRow(index)} hitSlop={8}>
+                    <Ionicons
+                      name={row.selected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={row.selected ? Colors.primary : Colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.importRowDesc, !row.selected && { color: Colors.textTertiary }]} numberOfLines={1}>
+                      {row.description}
+                    </Text>
+                    <Text style={styles.importRowDate}>{formatDate(row.date)}</Text>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Text style={[styles.importRowAmount, !row.selected && { color: Colors.textTertiary }]}>
+                      {formatCurrency(row.amount)}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.importCatBadge, { backgroundColor: CATEGORY_COLORS[row.category as ExpenseCategory] + '20' }]}
+                      onPress={() => setEditingCategoryIndex(editingCategoryIndex === index ? null : index)}
+                      hitSlop={4}
+                    >
+                      <Text style={{ fontSize: 12 }}>{CATEGORY_ICONS[row.category as ExpenseCategory]}</Text>
+                      <Text style={[styles.importCatBadgeText, { color: CATEGORY_COLORS[row.category as ExpenseCategory] }]}>
+                        {CATEGORY_LABELS[row.category as ExpenseCategory]}
+                      </Text>
+                      <Ionicons
+                        name={editingCategoryIndex === index ? 'chevron-up' : 'chevron-down'}
+                        size={10}
+                        color={CATEGORY_COLORS[row.category as ExpenseCategory]}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {editingCategoryIndex === index && (
+                  <View style={styles.importCatPicker}>
+                    {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.importCatOption,
+                          row.category === cat && { backgroundColor: CATEGORY_COLORS[cat] + '20', borderColor: CATEGORY_COLORS[cat] },
+                        ]}
+                        onPress={() => setImportRowCategory(index, cat)}
+                      >
+                        <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat]}</Text>
+                        <Text style={[styles.importCatOptionText, row.category === cat && { color: CATEGORY_COLORS[cat], fontWeight: '700' }]}>
+                          {CATEGORY_LABELS[cat]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+
+          <View style={styles.importFooter}>
+            <TouchableOpacity style={styles.saveBtn} onPress={confirmImport}>
+              <Text style={styles.saveBtnText}>
+                Importar {importRows.filter((r) => r.selected).length} lançamento{importRows.filter((r) => r.selected).length !== 1 ? 's' : ''}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1350,4 +1533,82 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   colorBtnActive: { borderWidth: 3, borderColor: Colors.text },
+  importSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 8,
+    backgroundColor: Colors.primaryLighter,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  importSummaryItem: { alignItems: 'center', gap: 2 },
+  importSummaryValue: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  importSummaryLabel: { fontSize: 11, color: Colors.primary, fontWeight: '500' },
+  importSummaryDivider: { width: 1, height: 32, backgroundColor: Colors.primary + '30', marginHorizontal: 4 },
+  importSelectAll: { marginLeft: 'auto' as any },
+  importSelectAllText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  importHint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    lineHeight: 16,
+  },
+  importRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  importRowDisabled: { opacity: 0.45 },
+  importRowDesc: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  importRowDate: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  importRowAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  importCatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  importCatBadgeText: { fontSize: 11, fontWeight: '700' },
+  importCatPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    backgroundColor: Colors.card,
+    borderRadius: 12,
+    padding: 10,
+    marginTop: -4,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  importCatOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  importCatOptionText: { fontSize: 12, color: Colors.text },
+  importFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
 });
