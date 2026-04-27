@@ -15,7 +15,7 @@ import {
   formatRoutineDays, DAY_LABELS, nextOccurrenceDate,
 } from '../../lib/routines';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 const ROUTINE_COLORS = Colors.medColors;
 
@@ -137,6 +137,7 @@ async function cancelRoutineNotifications(ids: string[]) {
 
 export default function RoutinesScreen() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [logs, setLogs] = useState<RoutineLog[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -310,7 +311,7 @@ export default function RoutinesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Rotinas</Text>

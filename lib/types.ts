@@ -150,3 +150,21 @@ export const CATEGORY_COLORS: Record<ExpenseCategory, string> = {
   education: '#3B82F6',
   other: '#6B7280',
 };
+
+export type WidgetType =
+  | 'routines_today'
+  | 'expense_summary'
+  | 'routine'
+  | 'todo_list'
+  | 'note'
+  | 'goal';
+
+export type WidgetSize = 'small' | 'medium' | 'large';
+
+export interface HomeWidget {
+  id: string;
+  type: WidgetType;
+  entityId?: string;
+  size: WidgetSize;
+  order: number;
+}

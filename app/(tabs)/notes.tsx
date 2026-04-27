@@ -10,7 +10,7 @@ import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note, PrivateNote } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { RichText, Toolbar, useEditorBridge } from '@10play/tentap-editor';
 import { stripHtml } from '../../lib/textFormatting';
 
@@ -90,6 +90,8 @@ const pinStyles = StyleSheet.create({
 const EDITOR_THEME = {
   toolbar: {
     toolbarBody: {
+      flex: 0,
+      height: 44,
       borderTopColor: Colors.border,
       borderBottomColor: Colors.border,
       backgroundColor: Colors.card,
@@ -105,6 +107,7 @@ const EDITOR_THEME = {
 
 export default function NotesScreen() {
   const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [title, setTitle] = useState('');
@@ -331,7 +334,7 @@ export default function NotesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.navigate('/(tabs)' as any)} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Notas</Text>
@@ -518,12 +521,11 @@ export default function NotesScreen() {
             onChangeText={setTitle}
             multiline
           />
-          {showAdd && <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} />}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.toolbarKAV}
-          >
-            <Toolbar editor={noteEditor} />
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+            {showAdd && <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} onLoadEnd={() => noteEditor.injectCSS('.ProseMirror { padding: 12px 20px; }', 'prosemirror-padding')} />}
+            <View style={{ height: 44 }}>
+              <Toolbar editor={noteEditor} />
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -551,12 +553,11 @@ export default function NotesScreen() {
             onChangeText={setPrivateTitle}
             multiline
           />
-          {showAddPrivate && <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} />}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.toolbarKAV}
-          >
-            <Toolbar editor={privateEditor} />
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+            {showAddPrivate && <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} onLoadEnd={() => privateEditor.injectCSS('.ProseMirror { padding: 12px 20px; }', 'prosemirror-padding')} />}
+            <View style={{ height: 44 }}>
+              <Toolbar editor={privateEditor} />
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -692,10 +693,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
-  },
-  toolbarKAV: {
-    position: 'absolute',
-    width: '100%',
-    bottom: 0,
   },
 });
