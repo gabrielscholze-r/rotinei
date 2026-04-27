@@ -109,6 +109,13 @@ export interface CustomCategory {
   color: string;
 }
 
+export interface ExpenseSection {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
 export interface Expense {
   id: string;
   description: string;
@@ -116,6 +123,7 @@ export interface Expense {
   category: string;
   date: string; // ISO
   createdAt: string;
+  sectionId?: string;
 }
 
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {

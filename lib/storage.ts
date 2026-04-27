@@ -26,4 +26,5 @@ export const KEYS = {
   PRIVATE_NOTES: 'private_notes',
   PRIVATE_PIN: 'private_pin',
   HOME_WIDGETS: 'home_widgets',
+  EXPENSE_SECTIONS: 'expense_sections',
 };

@@ -11,6 +11,7 @@ import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Expense, ExpenseCategory, CustomCategory, Goal, GoalTransaction,
+  ExpenseSection,
   CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_COLORS,
 } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
@@ -82,6 +83,16 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+interface SectionForm {
+  name: string;
+  color: string;
+}
+
+const DEFAULT_SECTION_FORM: SectionForm = {
+  name: '',
+  color: CUSTOM_COLORS[0],
+};
+
 interface AddForm {
   description: string;
   amount: string;
@@ -141,6 +152,11 @@ export default function ExpensesScreen() {
   const { tab, from } = useLocalSearchParams<{ tab?: string; goalId?: string; from?: string }>();
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
 
+  const [sections, setSections] = useState<ExpenseSection[]>([]);
+  const [selectedSection, setSelectedSection] = useState<ExpenseSection | null>(null);
+  const [showAddSection, setShowAddSection] = useState(false);
+  const [sectionForm, setSectionForm] = useState<SectionForm>(DEFAULT_SECTION_FORM);
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -179,11 +195,12 @@ export default function ExpensesScreen() {
   );
 
   async function load() {
-    const [data, day, cats, goalsData] = await Promise.all([
+    const [data, day, cats, goalsData, sectionsData] = await Promise.all([
       getItem<Expense[]>(KEYS.EXPENSES),
       getItem<number>(KEYS.BILLING_CYCLE_DAY),
       getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
       getItem<Goal[]>(KEYS.GOALS),
+      getItem<ExpenseSection[]>(KEYS.EXPENSE_SECTIONS),
     ]);
     const resolvedDay = day ?? 1;
     setCycleDay(resolvedDay);
@@ -191,6 +208,7 @@ export default function ExpensesScreen() {
     setCustomCategories(cats ?? []);
     setSelectedPeriod(currentPeriodKey(resolvedDay));
     setGoals(goalsData ?? []);
+    setSections(sectionsData ?? []);
   }
 
   async function saveExpenses(updated: Expense[]) {
@@ -201,6 +219,42 @@ export default function ExpensesScreen() {
   async function saveGoals(updated: Goal[]) {
     await setItem(KEYS.GOALS, updated);
     setGoals(updated);
+  }
+
+  async function saveSections(updated: ExpenseSection[]) {
+    await setItem(KEYS.EXPENSE_SECTIONS, updated);
+    setSections(updated);
+  }
+
+  function createSection() {
+    if (!sectionForm.name.trim()) {
+      Alert.alert('Erro', 'Informe um nome para a fatura.');
+      return;
+    }
+    const section: ExpenseSection = {
+      id: Date.now().toString(),
+      name: sectionForm.name.trim(),
+      color: sectionForm.color,
+      createdAt: new Date().toISOString(),
+    };
+    saveSections([...sections, section]);
+    setSectionForm(DEFAULT_SECTION_FORM);
+    setShowAddSection(false);
+  }
+
+  function deleteSection(id: string) {
+    Alert.alert('Excluir fatura', 'Todos os gastos desta fatura também serão excluídos. Tem certeza?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          saveSections(sections.filter((s) => s.id !== id));
+          saveExpenses(expenses.filter((e) => e.sectionId !== id));
+          if (selectedSection?.id === id) setSelectedSection(null);
+        },
+      },
+    ]);
   }
 
   async function saveCycleDay(day: number) {
@@ -261,6 +315,7 @@ export default function ExpensesScreen() {
       category: form.category,
       date: new Date(Date.UTC(form.date.getFullYear(), form.date.getMonth(), form.date.getDate(), 12, 0, 0)).toISOString(),
       createdAt: new Date().toISOString(),
+      ...(selectedSection ? { sectionId: selectedSection.id } : {}),
     };
     saveExpenses([expense, ...expenses]);
     setForm({ ...DEFAULT_FORM, date: new Date() });
@@ -314,7 +369,7 @@ export default function ExpensesScreen() {
   }
 
   async function confirmImport() {
-    const newExpenses = importRowsToExpenses(importRows);
+    const newExpenses = importRowsToExpenses(importRows, selectedSection?.id);
     if (newExpenses.length === 0) {
       Alert.alert('Nenhum item', 'Selecione ao menos um lançamento para importar.');
       return;
@@ -395,7 +450,15 @@ export default function ExpensesScreen() {
     setSelectedGoal(null);
   }
 
-  const periodExpenses = expenses.filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
+  const sectionStats = sections.map((s) => ({
+    ...s,
+    count: expenses.filter((e) => e.sectionId === s.id).length,
+    total: expenses.filter((e) => e.sectionId === s.id).reduce((sum, e) => sum + e.amount, 0),
+  }));
+
+  const periodExpenses = expenses
+    .filter((e) => e.sectionId === selectedSection?.id)
+    .filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const allCategoryKeys = [
@@ -426,11 +489,22 @@ export default function ExpensesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any)} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (selectedSection) {
+              setSelectedSection(null);
+            } else {
+              router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any);
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>{mainTab === 'gastos' ? 'Gastos' : 'Metas'}</Text>
-        {mainTab === 'gastos' ? (
+        <Text style={styles.title} numberOfLines={1}>
+          {selectedSection ? selectedSection.name : (mainTab === 'gastos' ? 'Faturas' : 'Metas')}
+        </Text>
+        {mainTab === 'gastos' && selectedSection ? (
           <View style={{ flexDirection: 'row', gap: 4 }}>
             <TouchableOpacity style={styles.settingsBtn} onPress={pickAndParseCSV} disabled={importLoading}>
               {importLoading
@@ -441,6 +515,10 @@ export default function ExpensesScreen() {
               <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
+        ) : mainTab === 'gastos' ? (
+          <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowSettings(true)}>
+            <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
         ) : (
           <View style={{ width: 40 }} />
         )}
@@ -450,21 +528,54 @@ export default function ExpensesScreen() {
       <View style={styles.mainTabs}>
         <TouchableOpacity
           style={[styles.mainTab, mainTab === 'gastos' && styles.mainTabActive]}
-          onPress={() => setMainTab('gastos')}
+          onPress={() => { setMainTab('gastos'); setSelectedSection(null); }}
         >
           <Ionicons name="wallet-outline" size={15} color={mainTab === 'gastos' ? Colors.primary : Colors.textSecondary} />
           <Text style={[styles.mainTabText, mainTab === 'gastos' && styles.mainTabTextActive]}>Gastos</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.mainTab, mainTab === 'metas' && styles.mainTabActive]}
-          onPress={() => setMainTab('metas')}
+          onPress={() => { setMainTab('metas'); setSelectedSection(null); }}
         >
           <Ionicons name="trophy-outline" size={15} color={mainTab === 'metas' ? Colors.primary : Colors.textSecondary} />
           <Text style={[styles.mainTabText, mainTab === 'metas' && styles.mainTabTextActive]}>Metas</Text>
         </TouchableOpacity>
       </View>
 
-      {mainTab === 'gastos' ? (
+      {mainTab === 'gastos' && !selectedSection ? (
+        /* ── Sections List ── */
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          {sectionStats.length === 0 && (
+            <View style={styles.empty}>
+              <Ionicons name="folder-open-outline" size={56} color={Colors.textTertiary} />
+              <Text style={styles.emptyTitle}>Nenhuma fatura</Text>
+              <Text style={styles.emptySub}>Toque em + para criar uma fatura</Text>
+            </View>
+          )}
+          {sectionStats.map((section) => (
+            <TouchableOpacity
+              key={section.id}
+              style={styles.sectionCard}
+              onPress={() => setSelectedSection(section)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.sectionColorBar, { backgroundColor: section.color }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionName}>{section.name}</Text>
+                <Text style={styles.sectionMeta}>
+                  {section.count} {section.count === 1 ? 'lançamento' : 'lançamentos'} · {formatCurrency(section.total)}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <TouchableOpacity onPress={() => deleteSection(section.id)} hitSlop={8}>
+                  <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+                </TouchableOpacity>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : mainTab === 'gastos' ? (
         <>
           <View style={styles.monthNav}>
             <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
@@ -602,7 +713,9 @@ export default function ExpensesScreen() {
             })}
           </ScrollView>
         </>
-      ) : (
+      ) : null}
+
+      {mainTab === 'metas' && (
         /* ── Goals section ── */
         <>
           <View style={styles.goalsSummaryCard}>
@@ -712,9 +825,51 @@ export default function ExpensesScreen() {
         </>
       )}
 
-      <FAB onPress={() => mainTab === 'metas' ? setShowAddGoal(true) : setShowAdd(true)} />
+      <FAB onPress={() => {
+        if (mainTab === 'metas') return setShowAddGoal(true);
+        if (!selectedSection) return setShowAddSection(true);
+        return setShowAdd(true);
+      }} />
 
-      
+      {/* ── Create Section Modal ── */}
+      <Modal visible={showAddSection} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Nova fatura</Text>
+            <TouchableOpacity onPress={() => { setShowAddSection(false); setSectionForm(DEFAULT_SECTION_FORM); }}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Nome *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Fatura Nubank, Cartão Inter..."
+              placeholderTextColor={Colors.textTertiary}
+              value={sectionForm.name}
+              onChangeText={(v) => setSectionForm({ ...sectionForm, name: v })}
+            />
+
+            <Text style={styles.label}>Cor</Text>
+            <View style={styles.colorRow}>
+              {CUSTOM_COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[styles.colorBtn, { backgroundColor: color }, sectionForm.color === color && styles.colorBtnActive]}
+                  onPress={() => setSectionForm({ ...sectionForm, color })}
+                >
+                  {sectionForm.color === color && <Ionicons name="checkmark" size={16} color="#fff" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={createSection}>
+              <Text style={styles.saveBtnText}>Criar fatura</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -1611,4 +1766,27 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+  sectionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionColorBar: {
+    width: 6,
+    height: 44,
+    borderRadius: 3,
+  },
+  sectionName: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  sectionMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 3 },
 });

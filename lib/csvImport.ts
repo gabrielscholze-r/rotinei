@@ -140,7 +140,7 @@ function splitCSVLine(line: string): string[] {
   return result;
 }
 
-export function importRowsToExpenses(rows: ImportRow[]): Expense[] {
+export function importRowsToExpenses(rows: ImportRow[], sectionId?: string): Expense[] {
   return rows
     .filter((r) => r.selected)
     .map((r, i) => ({
@@ -150,5 +150,6 @@ export function importRowsToExpenses(rows: ImportRow[]): Expense[] {
       category: r.category,
       date: r.date,
       createdAt: new Date().toISOString(),
+      ...(sectionId ? { sectionId } : {}),
     }));
 }
