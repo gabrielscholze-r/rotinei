@@ -52,6 +52,8 @@ function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
     theme: {
       toolbar: {
         toolbarBody: {
+          flex: 0,
+          height: 44,
           borderTopColor: Colors.border,
           borderBottomColor: Colors.border,
           backgroundColor: Colors.card,
@@ -122,17 +124,15 @@ function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
         multiline
       />
 
-      <RichText
-        editor={editor}
-        style={{ flex: 1, backgroundColor: Colors.background }}
-        onLoadEnd={() => editor.injectCSS('.ProseMirror { padding: 12px 20px 80px; }', 'prosemirror-padding')}
-      />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.toolbarKAV}
-      >
-        <Toolbar editor={editor} />
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        <RichText
+          editor={editor}
+          style={{ flex: 1, backgroundColor: Colors.background }}
+          onLoadEnd={() => editor.injectCSS('.ProseMirror { padding: 12px 20px; }', 'prosemirror-padding')}
+        />
+        <View style={{ height: 44 }}>
+          <Toolbar editor={editor} />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -163,10 +163,5 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingHorizontal: 20,
     marginBottom: 8,
-  },
-  toolbarKAV: {
-    position: 'absolute',
-    width: '100%',
-    bottom: 0,
   },
 });

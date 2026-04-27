@@ -90,6 +90,8 @@ const pinStyles = StyleSheet.create({
 const EDITOR_THEME = {
   toolbar: {
     toolbarBody: {
+      flex: 0,
+      height: 44,
       borderTopColor: Colors.border,
       borderBottomColor: Colors.border,
       backgroundColor: Colors.card,
@@ -519,12 +521,11 @@ export default function NotesScreen() {
             onChangeText={setTitle}
             multiline
           />
-          {showAdd && <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} />}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.toolbarKAV}
-          >
-            <Toolbar editor={noteEditor} />
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+            {showAdd && <RichText editor={noteEditor} style={{ flex: 1, backgroundColor: Colors.background }} onLoadEnd={() => noteEditor.injectCSS('.ProseMirror { padding: 12px 20px; }', 'prosemirror-padding')} />}
+            <View style={{ height: 44 }}>
+              <Toolbar editor={noteEditor} />
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -552,12 +553,11 @@ export default function NotesScreen() {
             onChangeText={setPrivateTitle}
             multiline
           />
-          {showAddPrivate && <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} />}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.toolbarKAV}
-          >
-            <Toolbar editor={privateEditor} />
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+            {showAddPrivate && <RichText editor={privateEditor} style={{ flex: 1, backgroundColor: '#F8FAFC' }} onLoadEnd={() => privateEditor.injectCSS('.ProseMirror { padding: 12px 20px; }', 'prosemirror-padding')} />}
+            <View style={{ height: 44 }}>
+              <Toolbar editor={privateEditor} />
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -693,10 +693,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
-  },
-  toolbarKAV: {
-    position: 'absolute',
-    width: '100%',
-    bottom: 0,
   },
 });
