@@ -10,6 +10,7 @@ import { getItem, KEYS } from '../../lib/storage';
 import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
 import { isRoutineForToday, isRoutineCompletedToday } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
+import { stripHtml } from '../../lib/textFormatting';
 
 export default function MenuScreen() {
   const router = useRouter();
@@ -248,8 +249,8 @@ export default function MenuScreen() {
                 <View style={[styles.colorDot, { backgroundColor: note.color }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowTitle} numberOfLines={1}>{note.title}</Text>
-                  {note.content.length > 0 && (
-                    <Text style={styles.rowSub} numberOfLines={1}>{note.content}</Text>
+                  {stripHtml(note.content).length > 0 && (
+                    <Text style={styles.rowSub} numberOfLines={1}>{stripHtml(note.content)}</Text>
                   )}
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />

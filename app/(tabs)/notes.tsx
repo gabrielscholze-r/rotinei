@@ -187,7 +187,7 @@ export default function NotesScreen() {
       id: Date.now().toString(),
       title: title.trim(),
       content: html,
-      color: '',
+      color: Colors.noteColors[Math.floor(Math.random() * Colors.noteColors.length)],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

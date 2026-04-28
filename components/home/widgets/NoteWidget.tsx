@@ -16,7 +16,7 @@ export function NoteWidget({ note, size }: Props) {
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: note.color }, isSmall && styles.smallCard]}
+      style={[styles.card, { backgroundColor: note.color || Colors.card }, !note.color && styles.cardBorder, isSmall && styles.smallCard]}
       onPress={() => router.push(`/notes/${note.id}` as any)}
       activeOpacity={0.85}
     >
@@ -34,6 +34,10 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 8,
     minHeight: 100,
+  },
+  cardBorder: {
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   smallCard: {
     padding: 14,
