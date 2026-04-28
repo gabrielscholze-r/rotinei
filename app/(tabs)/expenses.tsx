@@ -387,7 +387,7 @@ export default function ExpensesScreen() {
       const content = await new File(uri).text();
       const rows = parseNubankCSV(content);
       if (rows.length === 0) {
-        Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo está no formato Nubank (date, title, amount).');
+        Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
       }
       setImportRows(rows);
