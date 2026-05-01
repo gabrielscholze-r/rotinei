@@ -114,6 +114,7 @@ export interface ExpenseSection {
   name: string;
   color: string;
   createdAt: string;
+  closingDay?: number;
 }
 
 export interface Expense {

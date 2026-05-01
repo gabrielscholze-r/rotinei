@@ -89,11 +89,13 @@ function daysUntil(dateStr: string): number {
 interface SectionForm {
   name: string;
   color: string;
+  closingDay: string;
 }
 
 const DEFAULT_SECTION_FORM: SectionForm = {
   name: '',
   color: CUSTOM_COLORS[0],
+  closingDay: '',
 };
 
 interface AddForm {
@@ -275,11 +277,15 @@ export default function ExpensesScreen() {
       Alert.alert('Erro', 'Informe um nome para a fatura.');
       return;
     }
+    const closingDayNum = parseInt(sectionForm.closingDay);
     const section: ExpenseSection = {
       id: Date.now().toString(),
       name: sectionForm.name.trim(),
       color: sectionForm.color,
       createdAt: new Date().toISOString(),
+      ...(sectionForm.closingDay && closingDayNum >= 1 && closingDayNum <= 28
+        ? { closingDay: closingDayNum }
+        : {}),
     };
     saveSections([...sections, section]);
     setSectionForm(DEFAULT_SECTION_FORM);
@@ -385,7 +391,7 @@ export default function ExpensesScreen() {
       if (result.canceled) return;
       const uri = result.assets[0].uri;
       const content = await new File(uri).text();
-      const rows = parseNubankCSV(content);
+      const rows = parseNubankCSV(content, selectedSection?.closingDay);
       if (rows.length === 0) {
         Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
@@ -942,6 +948,20 @@ export default function ExpensesScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <Text style={styles.label}>Dia de fechamento (opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 5"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              maxLength={2}
+              value={sectionForm.closingDay}
+              onChangeText={(v) => setSectionForm({ ...sectionForm, closingDay: v.replace(/\D/g, '') })}
+            />
+            <Text style={{ fontSize: 12, color: Colors.textTertiary, marginBottom: 16, marginTop: -8 }}>
+              Informe o dia em que a fatura fecha para que parcelas sejam datadas corretamente no import.
+            </Text>
 
             <TouchableOpacity style={styles.saveBtn} onPress={createSection}>
               <Text style={styles.saveBtnText}>Criar fatura</Text>

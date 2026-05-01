@@ -1,4 +1,5 @@
 import { Expense, ExpenseCategory } from './types';
+import { getPeriodStart, periodKey, isInPeriod } from './billing';
 
 export interface ImportRow {
   date: string;       // ISO date
@@ -80,6 +81,17 @@ export function detectCategory(title: string): ExpenseCategory {
   return 'other';
 }
 
+function parseParcela(raw: string): { current: number; total: number } | null {
+  const m = raw.trim().match(/^(\d+)\s+de\s+(\d+)$/i);
+  if (!m) return null;
+  return { current: parseInt(m[1]), total: parseInt(m[2]) };
+}
+
+function isoToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T12:00:00Z`;
+}
+
 function parseAmountBR(raw: string): number {
   const normalized = raw
     .replace(/\u00A0/g, ' ')
@@ -124,7 +136,7 @@ function detectFormat(headerRaw: string): DetectedFormat | null {
   return null;
 }
 
-export function parseNubankCSV(content: string): ImportRow[] {
+export function parseNubankCSV(content: string, closingDay?: number): ImportRow[] {
   const clean = content.replace(/^\uFEFF/, '');
   const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
@@ -145,9 +157,18 @@ export function parseNubankCSV(content: string): ImportRow[] {
       f.includes('estabelecimento') || f.includes('descri') || f.includes('lancamento')
     );
     const ai = headerFields.findIndex((f) => f.includes('valor') || f.includes('amount'));
+    const pi = headerFields.findIndex((f) => f.includes('parcela'));
 
-    const descCol = ti >= 0 ? ti : 1;
-    const amtCol  = ai >= 0 ? ai : 3;
+    const descCol    = ti >= 0 ? ti : 1;
+    const amtCol     = ai >= 0 ? ai : 3;
+    const parcelaCol = pi >= 0 ? pi : -1;
+
+    let pKey: string | null = null;
+    let periodStart: Date | null = null;
+    if (closingDay) {
+      periodStart = getPeriodStart(new Date(), closingDay);
+      pKey = periodKey(new Date(), closingDay);
+    }
 
     for (let i = 1; i < lines.length; i++) {
       const fields = splitLine(lines[i]);
@@ -156,13 +177,25 @@ export function parseNubankCSV(content: string): ImportRow[] {
       const rawDate   = fields[di];
       const rawTitle  = fields[descCol];
       const rawAmount = fields[amtCol];
+      const rawParcela = parcelaCol >= 0 ? (fields[parcelaCol] ?? '-') : '-';
 
       const amount = parseAmountBR(rawAmount);
       if (isNaN(amount) || amount <= 0) continue;
       if (!rawTitle) continue;
 
+      let date = parseDateBR(rawDate);
+
+      if (parseParcela(rawParcela) !== null) {
+        if (pKey && periodStart && closingDay && !isInPeriod(date, pKey, closingDay)) {
+          const ps = periodStart;
+          date = `${ps.getFullYear()}-${String(ps.getMonth() + 1).padStart(2, '0')}-${String(ps.getDate()).padStart(2, '0')}T12:00:00Z`;
+        } else if (!closingDay) {
+          date = isoToday();
+        }
+      }
+
       rows.push({
-        date: parseDateBR(rawDate),
+        date,
         description: rawTitle,
         amount,
         category: detectCategory(rawTitle),
