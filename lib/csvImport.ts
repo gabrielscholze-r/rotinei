@@ -7,6 +7,7 @@ export interface ImportRow {
   amount: number;
   category: string;
   selected: boolean;
+  duplicate: boolean;
 }
 
 const CATEGORY_RULES: { keywords: string[]; category: ExpenseCategory }[] = [
@@ -200,6 +201,7 @@ export function parseNubankCSV(content: string, closingDay?: number): ImportRow[
         amount,
         category: detectCategory(rawTitle),
         selected: true,
+        duplicate: false,
       });
     }
     return rows;
@@ -228,6 +230,7 @@ export function parseNubankCSV(content: string, closingDay?: number): ImportRow[
       amount,
       category: detectCategory(description),
       selected: true,
+      duplicate: false,
     });
   }
 

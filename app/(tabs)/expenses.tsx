@@ -403,7 +403,17 @@ export default function ExpensesScreen() {
         Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
       }
-      setImportRows(rows);
+      const sectionExpenses = expenses.filter((e) => e.sectionId === selectedSection?.id);
+      const norm = (s: string) => s.toLowerCase().trim();
+      const isDup = (row: typeof rows[0]) =>
+        sectionExpenses.some(
+          (e) => Math.abs(e.amount - row.amount) < 0.01 && norm(e.description) === norm(row.description)
+        );
+      const markedRows = rows.map((row) => {
+        const dup = isDup(row);
+        return { ...row, duplicate: dup, selected: !dup };
+      });
+      setImportRows(markedRows);
       setShowImport(true);
     } catch {
       Alert.alert('Erro', 'Não foi possível ler o arquivo.');
@@ -1339,91 +1349,116 @@ export default function ExpensesScreen() {
           </Text>
 
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-            {importRows.map((row, index) => (
-              <View key={index}>
-                <View
-                  style={[styles.importRow, !row.selected && styles.importRowDisabled]}
-                >
-                  <TouchableOpacity onPress={() => toggleImportRow(index)} hitSlop={8}>
-                    <Ionicons
-                      name={row.selected ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={24}
-                      color={row.selected ? Colors.primary : Colors.textTertiary}
-                    />
-                  </TouchableOpacity>
+            {(() => {
+              const byDate = (
+                a: { row: (typeof importRows)[0] },
+                b: { row: (typeof importRows)[0] }
+              ) => new Date(b.row.date).getTime() - new Date(a.row.date).getTime();
+              const entries = importRows.map((row, i) => ({ row, i }));
+              const sel = entries.filter(({ row }) => row.selected).sort(byDate);
+              const desel = entries.filter(({ row }) => !row.selected).sort(byDate);
+              const groups: { header: string; items: typeof entries }[] = [
+                ...(sel.length > 0 ? [{ header: `Para importar (${sel.length})`, items: sel }] : []),
+                ...(desel.length > 0 ? [{ header: `Já adicionados (${desel.length})`, items: desel }] : []),
+              ];
+              return groups.map(({ header, items }) => (
+                <View key={header}>
+                  <Text style={styles.importSectionHeader}>{header}</Text>
+                  {items.map(({ row, i }) => (
+                    <View key={i}>
+                      <View
+                        style={[styles.importRow, !row.selected && styles.importRowDisabled]}
+                      >
+                        <TouchableOpacity onPress={() => toggleImportRow(i)} hitSlop={8}>
+                          <Ionicons
+                            name={row.selected ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={24}
+                            color={row.selected ? Colors.primary : Colors.textTertiary}
+                          />
+                        </TouchableOpacity>
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.importRowDesc, !row.selected && { color: Colors.textTertiary }]} numberOfLines={1}>
-                      {row.description}
-                    </Text>
-                    <Text style={styles.importRowDate}>{formatDate(row.date)}</Text>
-                  </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.importRowDesc, !row.selected && { color: Colors.textTertiary }]} numberOfLines={1}>
+                            {row.description}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            <Text style={styles.importRowDate}>{formatDate(row.date)}</Text>
+                            {row.duplicate && (
+                              <View style={styles.duplicateBadge}>
+                                <Text style={styles.duplicateBadgeText}>já adicionado</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
 
-                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <Text style={[styles.importRowAmount, !row.selected && { color: Colors.textTertiary }]}>
-                      {formatCurrency(row.amount)}
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.importCatBadge, { backgroundColor: getCategoryColor(row.category) + '20' }]}
-                      onPress={() => setEditingCategoryIndex(editingCategoryIndex === index ? null : index)}
-                      hitSlop={4}
-                    >
-                      <Text style={{ fontSize: 12 }}>{getCategoryIcon(row.category)}</Text>
-                      <Text style={[styles.importCatBadgeText, { color: getCategoryColor(row.category) }]}>
-                        {getCategoryLabel(row.category)}
-                      </Text>
-                      <Ionicons
-                        name={editingCategoryIndex === index ? 'chevron-up' : 'chevron-down'}
-                        size={10}
-                        color={getCategoryColor(row.category)}
-                      />
-                    </TouchableOpacity>
-                  </View>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          <Text style={[styles.importRowAmount, !row.selected && { color: Colors.textTertiary }]}>
+                            {formatCurrency(row.amount)}
+                          </Text>
+                          <TouchableOpacity
+                            style={[styles.importCatBadge, { backgroundColor: getCategoryColor(row.category) + '20' }]}
+                            onPress={() => setEditingCategoryIndex(editingCategoryIndex === i ? null : i)}
+                            hitSlop={4}
+                          >
+                            <Text style={{ fontSize: 12 }}>{getCategoryIcon(row.category)}</Text>
+                            <Text style={[styles.importCatBadgeText, { color: getCategoryColor(row.category) }]}>
+                              {getCategoryLabel(row.category)}
+                            </Text>
+                            <Ionicons
+                              name={editingCategoryIndex === i ? 'chevron-up' : 'chevron-down'}
+                              size={10}
+                              color={getCategoryColor(row.category)}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {editingCategoryIndex === i && (
+                        <View style={styles.importCatPicker}>
+                          {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => (
+                            <TouchableOpacity
+                              key={cat}
+                              style={[
+                                styles.importCatOption,
+                                row.category === cat && { backgroundColor: CATEGORY_COLORS[cat] + '20', borderColor: CATEGORY_COLORS[cat] },
+                              ]}
+                              onPress={() => setImportRowCategory(i, cat)}
+                            >
+                              <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat]}</Text>
+                              <Text style={[styles.importCatOptionText, row.category === cat && { color: CATEGORY_COLORS[cat], fontWeight: '700' }]}>
+                                {CATEGORY_LABELS[cat]}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          {customCategories.map((cat) => (
+                            <TouchableOpacity
+                              key={cat.id}
+                              style={[
+                                styles.importCatOption,
+                                row.category === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color },
+                              ]}
+                              onPress={() => setImportRowCategory(i, cat.id)}
+                            >
+                              <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
+                              <Text style={[styles.importCatOptionText, row.category === cat.id && { color: cat.color, fontWeight: '700' }]}>
+                                {cat.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity
+                            style={[styles.importCatOption, { borderStyle: 'dashed' }]}
+                            onPress={() => setShowNewCategory(true)}
+                          >
+                            <Ionicons name="add-circle-outline" size={16} color={Colors.textSecondary} />
+                            <Text style={[styles.importCatOptionText, { color: Colors.textSecondary }]}>Nova categoria</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
                 </View>
-
-                {editingCategoryIndex === index && (
-                  <View style={styles.importCatPicker}>
-                    {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.importCatOption,
-                          row.category === cat && { backgroundColor: CATEGORY_COLORS[cat] + '20', borderColor: CATEGORY_COLORS[cat] },
-                        ]}
-                        onPress={() => setImportRowCategory(index, cat)}
-                      >
-                        <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat]}</Text>
-                        <Text style={[styles.importCatOptionText, row.category === cat && { color: CATEGORY_COLORS[cat], fontWeight: '700' }]}>
-                          {CATEGORY_LABELS[cat]}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                    {customCategories.map((cat) => (
-                      <TouchableOpacity
-                        key={cat.id}
-                        style={[
-                          styles.importCatOption,
-                          row.category === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color },
-                        ]}
-                        onPress={() => setImportRowCategory(index, cat.id)}
-                      >
-                        <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
-                        <Text style={[styles.importCatOptionText, row.category === cat.id && { color: cat.color, fontWeight: '700' }]}>
-                          {cat.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                    <TouchableOpacity
-                      style={[styles.importCatOption, { borderStyle: 'dashed' }]}
-                      onPress={() => setShowNewCategory(true)}
-                    >
-                      <Ionicons name="add-circle-outline" size={16} color={Colors.textSecondary} />
-                      <Text style={[styles.importCatOptionText, { color: Colors.textSecondary }]}>Nova categoria</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
+              ));
+            })()}
             <View style={{ height: 40 }} />
           </ScrollView>
 
@@ -1861,10 +1896,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  importSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
   importRowDisabled: { opacity: 0.45 },
   importRowDesc: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  importRowDate: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  importRowDate: { fontSize: 12, color: Colors.textSecondary },
   importRowAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  duplicateBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  duplicateBadgeText: { fontSize: 10, color: '#92400e', fontWeight: '600' },
   importCatBadge: {
     flexDirection: 'row',
     alignItems: 'center',
