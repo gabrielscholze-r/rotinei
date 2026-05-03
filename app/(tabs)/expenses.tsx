@@ -195,12 +195,15 @@ export default function ExpensesScreen() {
   const [charts, setCharts] = useState<ExpenseChart[]>([]);
   const [showCreateChart, setShowCreateChart] = useState(false);
 
+  const effectiveCycleDay = selectedSection?.closingDay ?? cycleDay;
+
   const detailHeaderAnim = useRef(new Animated.Value(1)).current;
   const lastDetailScrollY = useRef(0);
 
   useEffect(() => {
     lastDetailScrollY.current = 0;
     Animated.timing(detailHeaderAnim, { toValue: 1, duration: 0, useNativeDriver: false }).start();
+    setSelectedPeriod(currentPeriodKey(selectedSection?.closingDay ?? cycleDay));
   }, [selectedSection?.id]);
 
   function handleDetailScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -283,7 +286,7 @@ export default function ExpensesScreen() {
       name: sectionForm.name.trim(),
       color: sectionForm.color,
       createdAt: new Date().toISOString(),
-      ...(sectionForm.closingDay && closingDayNum >= 1 && closingDayNum <= 28
+      ...(sectionForm.closingDay && closingDayNum >= 1 && closingDayNum <= 31
         ? { closingDay: closingDayNum }
         : {}),
     };
@@ -328,7 +331,11 @@ export default function ExpensesScreen() {
     const updated = [...customCategories, newCat];
     await setItem(KEYS.CUSTOM_CATEGORIES, updated);
     setCustomCategories(updated);
-    setForm({ ...form, category: newCat.id });
+    if (showImport && editingCategoryIndex !== null) {
+      setImportRowCategory(editingCategoryIndex, newCat.id);
+    } else {
+      setForm({ ...form, category: newCat.id });
+    }
     setNewCatForm(DEFAULT_NEW_CAT);
     setShowNewCategory(false);
   }
@@ -411,7 +418,7 @@ export default function ExpensesScreen() {
     );
   }
 
-  function setImportRowCategory(index: number, category: ExpenseCategory) {
+  function setImportRowCategory(index: number, category: string) {
     setImportRows((prev) =>
       prev.map((r, i) => (i !== index ? r : { ...r, category }))
     );
@@ -508,7 +515,7 @@ export default function ExpensesScreen() {
 
   const periodExpenses = expenses
     .filter((e) => e.sectionId === selectedSection?.id)
-    .filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
+    .filter((e) => isInPeriod(e.date, selectedPeriod, effectiveCycleDay));
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const allCategoryKeys = [
@@ -532,7 +539,7 @@ export default function ExpensesScreen() {
     return sortOrder === 'desc' ? diff : -diff;
   });
 
-  const isCurrentPeriod = selectedPeriod === currentPeriodKey(cycleDay);
+  const isCurrentPeriod = selectedPeriod === currentPeriodKey(effectiveCycleDay);
 
   const totalGoalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
 
@@ -614,7 +621,7 @@ export default function ExpensesScreen() {
                   expenses={expenses}
                   sections={sections}
                   customCategories={customCategories}
-                  cycleDay={cycleDay}
+                  cycleDay={effectiveCycleDay}
                   onDelete={handleDeleteChart}
                 />
               )}
@@ -658,11 +665,11 @@ export default function ExpensesScreen() {
             maxHeight: detailHeaderAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
           }}>
             <View style={styles.monthNav}>
-              <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, effectiveCycleDay)); setCategoryFilter(null); }} hitSlop={8}>
                 <Ionicons name="chevron-back" size={22} color={Colors.primary} />
               </TouchableOpacity>
-              <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
-              <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
+              <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, effectiveCycleDay)}</Text>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, effectiveCycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
                 <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
               </TouchableOpacity>
             </View>
@@ -1357,18 +1364,18 @@ export default function ExpensesScreen() {
                       {formatCurrency(row.amount)}
                     </Text>
                     <TouchableOpacity
-                      style={[styles.importCatBadge, { backgroundColor: CATEGORY_COLORS[row.category as ExpenseCategory] + '20' }]}
+                      style={[styles.importCatBadge, { backgroundColor: getCategoryColor(row.category) + '20' }]}
                       onPress={() => setEditingCategoryIndex(editingCategoryIndex === index ? null : index)}
                       hitSlop={4}
                     >
-                      <Text style={{ fontSize: 12 }}>{CATEGORY_ICONS[row.category as ExpenseCategory]}</Text>
-                      <Text style={[styles.importCatBadgeText, { color: CATEGORY_COLORS[row.category as ExpenseCategory] }]}>
-                        {CATEGORY_LABELS[row.category as ExpenseCategory]}
+                      <Text style={{ fontSize: 12 }}>{getCategoryIcon(row.category)}</Text>
+                      <Text style={[styles.importCatBadgeText, { color: getCategoryColor(row.category) }]}>
+                        {getCategoryLabel(row.category)}
                       </Text>
                       <Ionicons
                         name={editingCategoryIndex === index ? 'chevron-up' : 'chevron-down'}
                         size={10}
-                        color={CATEGORY_COLORS[row.category as ExpenseCategory]}
+                        color={getCategoryColor(row.category)}
                       />
                     </TouchableOpacity>
                   </View>
@@ -1391,6 +1398,28 @@ export default function ExpensesScreen() {
                         </Text>
                       </TouchableOpacity>
                     ))}
+                    {customCategories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat.id}
+                        style={[
+                          styles.importCatOption,
+                          row.category === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color },
+                        ]}
+                        onPress={() => setImportRowCategory(index, cat.id)}
+                      >
+                        <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
+                        <Text style={[styles.importCatOptionText, row.category === cat.id && { color: cat.color, fontWeight: '700' }]}>
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity
+                      style={[styles.importCatOption, { borderStyle: 'dashed' }]}
+                      onPress={() => setShowNewCategory(true)}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={Colors.textSecondary} />
+                      <Text style={[styles.importCatOptionText, { color: Colors.textSecondary }]}>Nova categoria</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -1413,7 +1442,7 @@ export default function ExpensesScreen() {
         onClose={() => setShowCreateChart(false)}
         onSave={handleCreateChart}
         sections={sections}
-        cycleDay={cycleDay}
+        cycleDay={effectiveCycleDay}
         expenses={expenses}
         customCategories={customCategories}
       />

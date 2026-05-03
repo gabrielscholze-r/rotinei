@@ -298,6 +298,11 @@ export default function RoutinesScreen() {
     await saveLogs([log, ...logs]);
   }
 
+  async function unmarkDone(routineId: string) {
+    const today = getTodayKey();
+    await saveLogs(logs.filter((l) => !(l.routineId === routineId && l.date === today)));
+  }
+
   function toggleDay(day: number) {
     const days = form.days.includes(day)
       ? form.days.filter((d) => d !== day)
@@ -337,7 +342,9 @@ export default function RoutinesScreen() {
                   <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days, routine.repeat ?? 'repeat')}</Text>
                 </View>
                 {done ? (
-                  <Ionicons name="checkmark-circle" size={28} color={Colors.success} />
+                  <TouchableOpacity onPress={() => unmarkDone(routine.id)} hitSlop={8}>
+                    <Ionicons name="checkmark-circle" size={28} color={Colors.success} />
+                  </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
                     style={[styles.doneBtn, { backgroundColor: routine.color }]}

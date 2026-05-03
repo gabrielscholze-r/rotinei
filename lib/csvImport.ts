@@ -5,7 +5,7 @@ export interface ImportRow {
   date: string;       // ISO date
   description: string;
   amount: number;
-  category: ExpenseCategory;
+  category: string;
   selected: boolean;
 }
 
