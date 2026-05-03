@@ -317,6 +317,17 @@ export default function ExpensesScreen() {
     setShowSettings(false);
   }
 
+  async function saveSectionClosingDay(day: number) {
+    if (!selectedSection) return;
+    const updated = sections.map(s =>
+      s.id === selectedSection.id ? { ...s, closingDay: day } : s
+    );
+    saveSections(updated);
+    setSelectedSection({ ...selectedSection, closingDay: day });
+    setSelectedPeriod(currentPeriodKey(day));
+    setShowSettings(false);
+  }
+
   async function createCategory() {
     if (!newCatForm.name.trim()) {
       Alert.alert('Erro', 'Informe um nome para a categoria.');
@@ -1142,10 +1153,10 @@ export default function ExpensesScreen() {
               {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                 <TouchableOpacity
                   key={day}
-                  style={[styles.dayBtn, cycleDay === day && styles.dayBtnActive]}
-                  onPress={() => saveCycleDay(day)}
+                  style={[styles.dayBtn, effectiveCycleDay === day && styles.dayBtnActive]}
+                  onPress={() => selectedSection ? saveSectionClosingDay(day) : saveCycleDay(day)}
                 >
-                  <Text style={[styles.dayBtnText, cycleDay === day && styles.dayBtnTextActive]}>{day}</Text>
+                  <Text style={[styles.dayBtnText, effectiveCycleDay === day && styles.dayBtnTextActive]}>{day}</Text>
                 </TouchableOpacity>
               ))}
             </View>
