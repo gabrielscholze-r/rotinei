@@ -89,11 +89,13 @@ function daysUntil(dateStr: string): number {
 interface SectionForm {
   name: string;
   color: string;
+  closingDay: string;
 }
 
 const DEFAULT_SECTION_FORM: SectionForm = {
   name: '',
   color: CUSTOM_COLORS[0],
+  closingDay: '',
 };
 
 interface AddForm {
@@ -193,12 +195,15 @@ export default function ExpensesScreen() {
   const [charts, setCharts] = useState<ExpenseChart[]>([]);
   const [showCreateChart, setShowCreateChart] = useState(false);
 
+  const effectiveCycleDay = selectedSection?.closingDay ?? cycleDay;
+
   const detailHeaderAnim = useRef(new Animated.Value(1)).current;
   const lastDetailScrollY = useRef(0);
 
   useEffect(() => {
     lastDetailScrollY.current = 0;
     Animated.timing(detailHeaderAnim, { toValue: 1, duration: 0, useNativeDriver: false }).start();
+    setSelectedPeriod(currentPeriodKey(selectedSection?.closingDay ?? cycleDay));
   }, [selectedSection?.id]);
 
   function handleDetailScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -275,11 +280,15 @@ export default function ExpensesScreen() {
       Alert.alert('Erro', 'Informe um nome para a fatura.');
       return;
     }
+    const closingDayNum = parseInt(sectionForm.closingDay);
     const section: ExpenseSection = {
       id: Date.now().toString(),
       name: sectionForm.name.trim(),
       color: sectionForm.color,
       createdAt: new Date().toISOString(),
+      ...(sectionForm.closingDay && closingDayNum >= 1 && closingDayNum <= 31
+        ? { closingDay: closingDayNum }
+        : {}),
     };
     saveSections([...sections, section]);
     setSectionForm(DEFAULT_SECTION_FORM);
@@ -308,6 +317,17 @@ export default function ExpensesScreen() {
     setShowSettings(false);
   }
 
+  async function saveSectionClosingDay(day: number) {
+    if (!selectedSection) return;
+    const updated = sections.map(s =>
+      s.id === selectedSection.id ? { ...s, closingDay: day } : s
+    );
+    saveSections(updated);
+    setSelectedSection({ ...selectedSection, closingDay: day });
+    setSelectedPeriod(currentPeriodKey(day));
+    setShowSettings(false);
+  }
+
   async function createCategory() {
     if (!newCatForm.name.trim()) {
       Alert.alert('Erro', 'Informe um nome para a categoria.');
@@ -322,7 +342,11 @@ export default function ExpensesScreen() {
     const updated = [...customCategories, newCat];
     await setItem(KEYS.CUSTOM_CATEGORIES, updated);
     setCustomCategories(updated);
-    setForm({ ...form, category: newCat.id });
+    if (showImport && editingCategoryIndex !== null) {
+      setImportRowCategory(editingCategoryIndex, newCat.id);
+    } else {
+      setForm({ ...form, category: newCat.id });
+    }
     setNewCatForm(DEFAULT_NEW_CAT);
     setShowNewCategory(false);
   }
@@ -385,12 +409,22 @@ export default function ExpensesScreen() {
       if (result.canceled) return;
       const uri = result.assets[0].uri;
       const content = await new File(uri).text();
-      const rows = parseNubankCSV(content);
+      const rows = parseNubankCSV(content, selectedSection?.closingDay);
       if (rows.length === 0) {
         Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
       }
-      setImportRows(rows);
+      const sectionExpenses = expenses.filter((e) => e.sectionId === selectedSection?.id);
+      const norm = (s: string) => s.toLowerCase().trim();
+      const isDup = (row: typeof rows[0]) =>
+        sectionExpenses.some(
+          (e) => Math.abs(e.amount - row.amount) < 0.01 && norm(e.description) === norm(row.description)
+        );
+      const markedRows = rows.map((row) => {
+        const dup = isDup(row);
+        return { ...row, duplicate: dup, selected: !dup };
+      });
+      setImportRows(markedRows);
       setShowImport(true);
     } catch {
       Alert.alert('Erro', 'Não foi possível ler o arquivo.');
@@ -405,7 +439,7 @@ export default function ExpensesScreen() {
     );
   }
 
-  function setImportRowCategory(index: number, category: ExpenseCategory) {
+  function setImportRowCategory(index: number, category: string) {
     setImportRows((prev) =>
       prev.map((r, i) => (i !== index ? r : { ...r, category }))
     );
@@ -502,7 +536,7 @@ export default function ExpensesScreen() {
 
   const periodExpenses = expenses
     .filter((e) => e.sectionId === selectedSection?.id)
-    .filter((e) => isInPeriod(e.date, selectedPeriod, cycleDay));
+    .filter((e) => isInPeriod(e.date, selectedPeriod, effectiveCycleDay));
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const allCategoryKeys = [
@@ -526,7 +560,7 @@ export default function ExpensesScreen() {
     return sortOrder === 'desc' ? diff : -diff;
   });
 
-  const isCurrentPeriod = selectedPeriod === currentPeriodKey(cycleDay);
+  const isCurrentPeriod = selectedPeriod === currentPeriodKey(effectiveCycleDay);
 
   const totalGoalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
 
@@ -608,7 +642,7 @@ export default function ExpensesScreen() {
                   expenses={expenses}
                   sections={sections}
                   customCategories={customCategories}
-                  cycleDay={cycleDay}
+                  cycleDay={effectiveCycleDay}
                   onDelete={handleDeleteChart}
                 />
               )}
@@ -652,11 +686,11 @@ export default function ExpensesScreen() {
             maxHeight: detailHeaderAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 200] }),
           }}>
             <View style={styles.monthNav}>
-              <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8}>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(prevPeriodKey(selectedPeriod, effectiveCycleDay)); setCategoryFilter(null); }} hitSlop={8}>
                 <Ionicons name="chevron-back" size={22} color={Colors.primary} />
               </TouchableOpacity>
-              <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, cycleDay)}</Text>
-              <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, cycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
+              <Text style={styles.monthLabel}>{periodLabel(selectedPeriod, effectiveCycleDay)}</Text>
+              <TouchableOpacity onPress={() => { setSelectedPeriod(nextPeriodKey(selectedPeriod, effectiveCycleDay)); setCategoryFilter(null); }} hitSlop={8} disabled={isCurrentPeriod}>
                 <Ionicons name="chevron-forward" size={22} color={isCurrentPeriod ? Colors.textTertiary : Colors.primary} />
               </TouchableOpacity>
             </View>
@@ -943,6 +977,20 @@ export default function ExpensesScreen() {
               ))}
             </View>
 
+            <Text style={styles.label}>Dia de fechamento (opcional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 5"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              maxLength={2}
+              value={sectionForm.closingDay}
+              onChangeText={(v) => setSectionForm({ ...sectionForm, closingDay: v.replace(/\D/g, '') })}
+            />
+            <Text style={{ fontSize: 12, color: Colors.textTertiary, marginBottom: 16, marginTop: -8 }}>
+              Informe o dia em que a fatura fecha para que parcelas sejam datadas corretamente no import.
+            </Text>
+
             <TouchableOpacity style={styles.saveBtn} onPress={createSection}>
               <Text style={styles.saveBtnText}>Criar fatura</Text>
             </TouchableOpacity>
@@ -1105,10 +1153,10 @@ export default function ExpensesScreen() {
               {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                 <TouchableOpacity
                   key={day}
-                  style={[styles.dayBtn, cycleDay === day && styles.dayBtnActive]}
-                  onPress={() => saveCycleDay(day)}
+                  style={[styles.dayBtn, effectiveCycleDay === day && styles.dayBtnActive]}
+                  onPress={() => selectedSection ? saveSectionClosingDay(day) : saveCycleDay(day)}
                 >
-                  <Text style={[styles.dayBtnText, cycleDay === day && styles.dayBtnTextActive]}>{day}</Text>
+                  <Text style={[styles.dayBtnText, effectiveCycleDay === day && styles.dayBtnTextActive]}>{day}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1312,69 +1360,116 @@ export default function ExpensesScreen() {
           </Text>
 
           <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-            {importRows.map((row, index) => (
-              <View key={index}>
-                <View
-                  style={[styles.importRow, !row.selected && styles.importRowDisabled]}
-                >
-                  <TouchableOpacity onPress={() => toggleImportRow(index)} hitSlop={8}>
-                    <Ionicons
-                      name={row.selected ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={24}
-                      color={row.selected ? Colors.primary : Colors.textTertiary}
-                    />
-                  </TouchableOpacity>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.importRowDesc, !row.selected && { color: Colors.textTertiary }]} numberOfLines={1}>
-                      {row.description}
-                    </Text>
-                    <Text style={styles.importRowDate}>{formatDate(row.date)}</Text>
-                  </View>
-
-                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <Text style={[styles.importRowAmount, !row.selected && { color: Colors.textTertiary }]}>
-                      {formatCurrency(row.amount)}
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.importCatBadge, { backgroundColor: CATEGORY_COLORS[row.category as ExpenseCategory] + '20' }]}
-                      onPress={() => setEditingCategoryIndex(editingCategoryIndex === index ? null : index)}
-                      hitSlop={4}
-                    >
-                      <Text style={{ fontSize: 12 }}>{CATEGORY_ICONS[row.category as ExpenseCategory]}</Text>
-                      <Text style={[styles.importCatBadgeText, { color: CATEGORY_COLORS[row.category as ExpenseCategory] }]}>
-                        {CATEGORY_LABELS[row.category as ExpenseCategory]}
-                      </Text>
-                      <Ionicons
-                        name={editingCategoryIndex === index ? 'chevron-up' : 'chevron-down'}
-                        size={10}
-                        color={CATEGORY_COLORS[row.category as ExpenseCategory]}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {editingCategoryIndex === index && (
-                  <View style={styles.importCatPicker}>
-                    {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.importCatOption,
-                          row.category === cat && { backgroundColor: CATEGORY_COLORS[cat] + '20', borderColor: CATEGORY_COLORS[cat] },
-                        ]}
-                        onPress={() => setImportRowCategory(index, cat)}
+            {(() => {
+              const byDate = (
+                a: { row: (typeof importRows)[0] },
+                b: { row: (typeof importRows)[0] }
+              ) => new Date(b.row.date).getTime() - new Date(a.row.date).getTime();
+              const entries = importRows.map((row, i) => ({ row, i }));
+              const sel = entries.filter(({ row }) => row.selected).sort(byDate);
+              const desel = entries.filter(({ row }) => !row.selected).sort(byDate);
+              const groups: { header: string; items: typeof entries }[] = [
+                ...(sel.length > 0 ? [{ header: `Para importar (${sel.length})`, items: sel }] : []),
+                ...(desel.length > 0 ? [{ header: `Já adicionados (${desel.length})`, items: desel }] : []),
+              ];
+              return groups.map(({ header, items }) => (
+                <View key={header}>
+                  <Text style={styles.importSectionHeader}>{header}</Text>
+                  {items.map(({ row, i }) => (
+                    <View key={i}>
+                      <View
+                        style={[styles.importRow, !row.selected && styles.importRowDisabled]}
                       >
-                        <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat]}</Text>
-                        <Text style={[styles.importCatOptionText, row.category === cat && { color: CATEGORY_COLORS[cat], fontWeight: '700' }]}>
-                          {CATEGORY_LABELS[cat]}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
+                        <TouchableOpacity onPress={() => toggleImportRow(i)} hitSlop={8}>
+                          <Ionicons
+                            name={row.selected ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={24}
+                            color={row.selected ? Colors.primary : Colors.textTertiary}
+                          />
+                        </TouchableOpacity>
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.importRowDesc, !row.selected && { color: Colors.textTertiary }]} numberOfLines={1}>
+                            {row.description}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            <Text style={styles.importRowDate}>{formatDate(row.date)}</Text>
+                            {row.duplicate && (
+                              <View style={styles.duplicateBadge}>
+                                <Text style={styles.duplicateBadgeText}>já adicionado</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          <Text style={[styles.importRowAmount, !row.selected && { color: Colors.textTertiary }]}>
+                            {formatCurrency(row.amount)}
+                          </Text>
+                          <TouchableOpacity
+                            style={[styles.importCatBadge, { backgroundColor: getCategoryColor(row.category) + '20' }]}
+                            onPress={() => setEditingCategoryIndex(editingCategoryIndex === i ? null : i)}
+                            hitSlop={4}
+                          >
+                            <Text style={{ fontSize: 12 }}>{getCategoryIcon(row.category)}</Text>
+                            <Text style={[styles.importCatBadgeText, { color: getCategoryColor(row.category) }]}>
+                              {getCategoryLabel(row.category)}
+                            </Text>
+                            <Ionicons
+                              name={editingCategoryIndex === i ? 'chevron-up' : 'chevron-down'}
+                              size={10}
+                              color={getCategoryColor(row.category)}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {editingCategoryIndex === i && (
+                        <View style={styles.importCatPicker}>
+                          {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((cat) => (
+                            <TouchableOpacity
+                              key={cat}
+                              style={[
+                                styles.importCatOption,
+                                row.category === cat && { backgroundColor: CATEGORY_COLORS[cat] + '20', borderColor: CATEGORY_COLORS[cat] },
+                              ]}
+                              onPress={() => setImportRowCategory(i, cat)}
+                            >
+                              <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat]}</Text>
+                              <Text style={[styles.importCatOptionText, row.category === cat && { color: CATEGORY_COLORS[cat], fontWeight: '700' }]}>
+                                {CATEGORY_LABELS[cat]}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          {customCategories.map((cat) => (
+                            <TouchableOpacity
+                              key={cat.id}
+                              style={[
+                                styles.importCatOption,
+                                row.category === cat.id && { backgroundColor: cat.color + '20', borderColor: cat.color },
+                              ]}
+                              onPress={() => setImportRowCategory(i, cat.id)}
+                            >
+                              <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
+                              <Text style={[styles.importCatOptionText, row.category === cat.id && { color: cat.color, fontWeight: '700' }]}>
+                                {cat.name}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TouchableOpacity
+                            style={[styles.importCatOption, { borderStyle: 'dashed' }]}
+                            onPress={() => setShowNewCategory(true)}
+                          >
+                            <Ionicons name="add-circle-outline" size={16} color={Colors.textSecondary} />
+                            <Text style={[styles.importCatOptionText, { color: Colors.textSecondary }]}>Nova categoria</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ));
+            })()}
             <View style={{ height: 40 }} />
           </ScrollView>
 
@@ -1393,7 +1488,7 @@ export default function ExpensesScreen() {
         onClose={() => setShowCreateChart(false)}
         onSave={handleCreateChart}
         sections={sections}
-        cycleDay={cycleDay}
+        cycleDay={effectiveCycleDay}
         expenses={expenses}
         customCategories={customCategories}
       />
@@ -1812,10 +1907,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  importSectionHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
   importRowDisabled: { opacity: 0.45 },
   importRowDesc: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  importRowDate: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  importRowDate: { fontSize: 12, color: Colors.textSecondary },
   importRowAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  duplicateBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  duplicateBadgeText: { fontSize: 10, color: '#92400e', fontWeight: '600' },
   importCatBadge: {
     flexDirection: 'row',
     alignItems: 'center',
