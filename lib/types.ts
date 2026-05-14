@@ -174,6 +174,19 @@ export interface ExpenseChart {
   createdAt: string;
 }
 
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  sectionId?: string;
+  dayOfMonth: number; // 1-28
+  active: boolean;
+  emoji: string;
+  lastGeneratedKey?: string; // "YYYY-MM"
+  createdAt: string;
+}
+
 export type WidgetType =
   | 'routines_today'
   | 'expense_summary'

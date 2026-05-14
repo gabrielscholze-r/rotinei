@@ -28,4 +28,5 @@ export const KEYS = {
   HOME_WIDGETS: 'home_widgets',
   EXPENSE_SECTIONS: 'expense_sections',
   EXPENSE_CHARTS: 'expense_charts',
+  RECURRING_EXPENSES: 'recurring_expenses',
 };
