@@ -94,7 +94,11 @@ export function ChartWidget({ chart, expenses, sections: _sections, customCatego
   }
 
   if (chart.periodType === 'billing_period' && chart.billingPeriodKey) {
-    filtered = filtered.filter((e) => isInPeriod(e.date, chart.billingPeriodKey!, cycleDay));
+    filtered = filtered.filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === chart.billingPeriodKey
+        : isInPeriod(e.date, chart.billingPeriodKey!, cycleDay)
+    );
   } else if (chart.periodType === 'calendar_month' && chart.calendarMonth) {
     filtered = filtered.filter((e) => e.date.startsWith(chart.calendarMonth!));
   } else if (chart.periodType === 'custom_range' && chart.rangeStart && chart.rangeEnd) {

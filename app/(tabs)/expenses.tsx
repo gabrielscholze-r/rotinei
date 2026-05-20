@@ -12,14 +12,14 @@ import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Expense, ExpenseCategory, CustomCategory, Goal, GoalTransaction,
-  ExpenseSection, ExpenseChart,
+  ExpenseSection, ExpenseChart, RecurringExpense,
   CATEGORY_LABELS, CATEGORY_ICONS, CATEGORY_COLORS,
 } from '../../lib/types';
 import { ChartWidget } from '../../components/expenses/ChartWidget';
 import { CreateChartModal } from '../../components/expenses/CreateChartModal';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod,
+  currentPeriodKey, periodLabel, prevPeriodKey, nextPeriodKey, isInPeriod, periodKey,
 } from '../../lib/billing';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -152,6 +152,24 @@ const DEFAULT_TX_FORM: TransactionForm = {
   type: 'add',
 };
 
+interface RecurringForm {
+  description: string;
+  amount: string;
+  category: string;
+  dayOfMonth: string;
+  emoji: string;
+  sectionId: string;
+}
+
+const DEFAULT_RECURRING_FORM: RecurringForm = {
+  description: '',
+  amount: '',
+  category: 'food',
+  dayOfMonth: '',
+  emoji: '🔁',
+  sectionId: '',
+};
+
 export default function ExpensesScreen() {
   const router = useRouter();
   const { tab, from } = useLocalSearchParams<{ tab?: string; goalId?: string; from?: string }>();
@@ -192,6 +210,12 @@ export default function ExpensesScreen() {
   const [showGoalDeadline, setShowGoalDeadline] = useState(false);
   const [goalDeadlineDate, setGoalDeadlineDate] = useState(new Date());
 
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  const [showRecurring, setShowRecurring] = useState(false);
+  const [showAddRecurring, setShowAddRecurring] = useState(false);
+  const [recurringForm, setRecurringForm] = useState<RecurringForm>(DEFAULT_RECURRING_FORM);
+  const [showRecurringEmoji, setShowRecurringEmoji] = useState(false);
+
   const [charts, setCharts] = useState<ExpenseChart[]>([]);
   const [showCreateChart, setShowCreateChart] = useState(false);
 
@@ -225,22 +249,34 @@ export default function ExpensesScreen() {
   );
 
   async function load() {
-    const [data, day, cats, goalsData, sectionsData, chartsData] = await Promise.all([
+    const [data, day, cats, goalsData, sectionsData, chartsData, recurringData] = await Promise.all([
       getItem<Expense[]>(KEYS.EXPENSES),
       getItem<number>(KEYS.BILLING_CYCLE_DAY),
       getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
       getItem<Goal[]>(KEYS.GOALS),
       getItem<ExpenseSection[]>(KEYS.EXPENSE_SECTIONS),
       getItem<ExpenseChart[]>(KEYS.EXPENSE_CHARTS),
+      getItem<RecurringExpense[]>(KEYS.RECURRING_EXPENSES),
     ]);
     const resolvedDay = day ?? 1;
+    const allExpenses = data ?? [];
+    const allRecurring = recurringData ?? [];
+
+    const { updatedRecurring, newExpenses } = generateRecurringExpenses(allRecurring, allExpenses);
+    const finalExpenses = newExpenses.length > 0 ? [...newExpenses, ...allExpenses] : allExpenses;
+    if (newExpenses.length > 0) {
+      await setItem(KEYS.EXPENSES, finalExpenses);
+      await setItem(KEYS.RECURRING_EXPENSES, updatedRecurring);
+    }
+
     setCycleDay(resolvedDay);
-    setExpenses(data ?? []);
+    setExpenses(finalExpenses);
     setCustomCategories(cats ?? []);
     setSelectedPeriod(currentPeriodKey(resolvedDay));
     setGoals(goalsData ?? []);
     setSections(sectionsData ?? []);
     setCharts(chartsData ?? []);
+    setRecurringExpenses(updatedRecurring);
   }
 
   async function saveExpenses(updated: Expense[]) {
@@ -261,6 +297,84 @@ export default function ExpensesScreen() {
   async function saveCharts(updated: ExpenseChart[]) {
     await setItem(KEYS.EXPENSE_CHARTS, updated);
     setCharts(updated);
+  }
+
+  function generateRecurringExpenses(recurring: RecurringExpense[], allExpenses: Expense[]): { updatedRecurring: RecurringExpense[]; newExpenses: Expense[] } {
+    const today = new Date();
+    const currentKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    const todayDate = today.getDate();
+    const newExpenses: Expense[] = [];
+    const updatedRecurring = recurring.map((r) => {
+      if (!r.active || r.lastGeneratedKey === currentKey || todayDate < r.dayOfMonth) return r;
+      const expDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), r.dayOfMonth, 12, 0, 0));
+      const alreadyExists = allExpenses.some(
+        (e) =>
+          e.sectionId === r.sectionId &&
+          Math.abs(e.amount - r.amount) < 0.01 &&
+          e.description === r.description &&
+          e.date.startsWith(expDate.toISOString().slice(0, 10))
+      );
+      if (!alreadyExists) {
+        newExpenses.push({
+          id: `rec_${r.id}_${currentKey}`,
+          description: r.description,
+          amount: r.amount,
+          category: r.category,
+          date: expDate.toISOString(),
+          createdAt: new Date().toISOString(),
+          ...(r.sectionId ? { sectionId: r.sectionId } : {}),
+        });
+      }
+      return { ...r, lastGeneratedKey: currentKey };
+    });
+    return { updatedRecurring, newExpenses };
+  }
+
+  async function saveRecurring(updated: RecurringExpense[]) {
+    await setItem(KEYS.RECURRING_EXPENSES, updated);
+    setRecurringExpenses(updated);
+  }
+
+  function createRecurring() {
+    if (!recurringForm.description.trim()) {
+      Alert.alert('Erro', 'Informe uma descrição.');
+      return;
+    }
+    const amount = parseAmountInput(recurringForm.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Erro', 'Valor inválido.');
+      return;
+    }
+    const day = parseInt(recurringForm.dayOfMonth);
+    if (isNaN(day) || day < 1 || day > 28) {
+      Alert.alert('Erro', 'Dia inválido. Use um valor entre 1 e 28.');
+      return;
+    }
+    const recurring: RecurringExpense = {
+      id: Date.now().toString(),
+      description: recurringForm.description.trim(),
+      amount,
+      category: recurringForm.category,
+      dayOfMonth: day,
+      active: true,
+      emoji: recurringForm.emoji,
+      ...(recurringForm.sectionId ? { sectionId: recurringForm.sectionId } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    saveRecurring([recurring, ...recurringExpenses]);
+    setRecurringForm(DEFAULT_RECURRING_FORM);
+    setShowAddRecurring(false);
+  }
+
+  function deleteRecurring(id: string) {
+    Alert.alert('Excluir recorrente', 'Tem certeza?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: () => saveRecurring(recurringExpenses.filter((r) => r.id !== id)) },
+    ]);
+  }
+
+  function toggleRecurringActive(id: string) {
+    saveRecurring(recurringExpenses.map((r) => r.id === id ? { ...r, active: !r.active } : r));
   }
 
   function handleCreateChart(chart: ExpenseChart) {
@@ -407,19 +521,30 @@ export default function ExpensesScreen() {
         copyToCacheDirectory: true,
       });
       if (result.canceled) return;
-      const uri = result.assets[0].uri;
-      const content = await new File(uri).text();
-      const rows = parseNubankCSV(content, selectedSection?.closingDay);
+      const asset = result.assets[0];
+      const content = await new File(asset.uri).text();
+      const filenameMatch = (asset.name ?? '').match(/(\d{4})-(\d{2})-(\d{2})/);
+      const invoiceClosingDate = filenameMatch
+        ? new Date(parseInt(filenameMatch[1]), parseInt(filenameMatch[2]) - 1, parseInt(filenameMatch[3]), 12)
+        : undefined;
+      const rows = parseNubankCSV(content, selectedSection?.closingDay, invoiceClosingDate);
       if (rows.length === 0) {
         Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
       }
       const sectionExpenses = expenses.filter((e) => e.sectionId === selectedSection?.id);
       const norm = (s: string) => s.toLowerCase().trim();
-      const isDup = (row: typeof rows[0]) =>
-        sectionExpenses.some(
-          (e) => Math.abs(e.amount - row.amount) < 0.01 && norm(e.description) === norm(row.description)
+      const isDup = (row: typeof rows[0]) => {
+        const rowPeriod = row.billingPeriodKey ?? periodKey(new Date(row.date), effectiveCycleDay);
+        return sectionExpenses.some(
+          (e) =>
+            Math.abs(e.amount - row.amount) < 0.01 &&
+            norm(e.description) === norm(row.description) &&
+            (e.billingPeriodKey
+              ? e.billingPeriodKey === rowPeriod
+              : isInPeriod(e.date, rowPeriod, effectiveCycleDay))
         );
+      };
       const markedRows = rows.map((row) => {
         const dup = isDup(row);
         return { ...row, duplicate: dup, selected: !dup };
@@ -536,7 +661,11 @@ export default function ExpensesScreen() {
 
   const periodExpenses = expenses
     .filter((e) => e.sectionId === selectedSection?.id)
-    .filter((e) => isInPeriod(e.date, selectedPeriod, effectiveCycleDay));
+    .filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === selectedPeriod
+        : isInPeriod(e.date, selectedPeriod, effectiveCycleDay)
+    );
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const allCategoryKeys = [
@@ -595,6 +724,9 @@ export default function ExpensesScreen() {
           </View>
         ) : mainTab === 'gastos' ? (
           <View style={{ flexDirection: 'row', gap: 4 }}>
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowRecurring(true)}>
+              <Ionicons name="repeat-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.settingsBtn} onPress={() => setShowCreateChart(true)}>
               <Ionicons name="pie-chart-outline" size={20} color={Colors.primary} />
             </TouchableOpacity>
@@ -648,6 +780,21 @@ export default function ExpensesScreen() {
               )}
             />
           )}
+          {recurringExpenses.filter((r) => r.active).length > 0 && (
+            <TouchableOpacity style={styles.recurringCard} onPress={() => setShowRecurring(true)} activeOpacity={0.75}>
+              <View style={[styles.expenseIcon, { backgroundColor: Colors.primary + '20' }]}>
+                <Ionicons name="repeat-outline" size={22} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.recurringCardTitle}>Despesas Recorrentes</Text>
+                <Text style={styles.recurringCardSub}>
+                  {recurringExpenses.filter((r) => r.active).length} ativa{recurringExpenses.filter((r) => r.active).length !== 1 ? 's' : ''} · {formatCurrency(recurringExpenses.filter((r) => r.active).reduce((s, r) => s + r.amount, 0))}/mês
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
           {sectionStats.length === 0 && (
             <View style={styles.empty}>
               <Ionicons name="folder-open-outline" size={56} color={Colors.textTertiary} />
@@ -1483,6 +1630,173 @@ export default function ExpensesScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* ── Recurring Expenses Management Modal ── */}
+      <Modal visible={showRecurring} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Recorrentes</Text>
+            <TouchableOpacity onPress={() => setShowRecurring(false)}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+            {recurringExpenses.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="repeat-outline" size={56} color={Colors.textTertiary} />
+                <Text style={styles.emptyTitle}>Nenhuma recorrente</Text>
+                <Text style={styles.emptySub}>Toque em + para adicionar assinaturas e cobranças fixas</Text>
+              </View>
+            )}
+            {recurringExpenses.map((r) => {
+              const section = sections.find((s) => s.id === r.sectionId);
+              return (
+                <View key={r.id} style={[styles.expenseRow, !r.active && { opacity: 0.5 }]}>
+                  <View style={[styles.expenseIcon, { backgroundColor: getCategoryColor(r.category) + '20' }]}>
+                    <Text style={{ fontSize: 20 }}>{r.emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.expenseDesc}>{r.description}</Text>
+                    <Text style={styles.expenseCat}>
+                      {getCategoryLabel(r.category)} · dia {r.dayOfMonth}{section ? ` · ${section.name}` : ''}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                    <Text style={styles.expenseAmount}>{formatCurrency(r.amount)}</Text>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                      <TouchableOpacity onPress={() => toggleRecurringActive(r.id)} hitSlop={8}>
+                        <Ionicons name={r.active ? 'pause-circle-outline' : 'play-circle-outline'} size={18} color={r.active ? Colors.primary : Colors.textTertiary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteRecurring(r.id)} hitSlop={8}>
+                        <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+            <View style={{ height: 20 }} />
+          </ScrollView>
+          <View style={styles.importFooter}>
+            <TouchableOpacity style={[styles.saveBtn, { flexDirection: 'row', gap: 6, justifyContent: 'center' }]} onPress={() => { setShowRecurring(false); setShowAddRecurring(true); }}>
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.saveBtnText}>Adicionar recorrente</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Add Recurring Expense Modal ── */}
+      <Modal visible={showAddRecurring} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Nova recorrente</Text>
+            <TouchableOpacity onPress={() => { setShowAddRecurring(false); setRecurringForm(DEFAULT_RECURRING_FORM); setShowRecurringEmoji(false); }}>
+              <Ionicons name="close" size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <Text style={styles.label}>Ícone</Text>
+            <TouchableOpacity style={styles.emojiPickerBtn} onPress={() => setShowRecurringEmoji(!showRecurringEmoji)}>
+              <Text style={{ fontSize: 26 }}>{recurringForm.emoji}</Text>
+              <Text style={styles.emojiPickerHint}>Toque para escolher</Text>
+              <Ionicons name={showRecurringEmoji ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textTertiary} />
+            </TouchableOpacity>
+            {showRecurringEmoji && (
+              <View style={styles.emojiGrid}>
+                {EMOJI_LIST.map((emoji, idx) => (
+                  <TouchableOpacity
+                    key={`${emoji}-${idx}`}
+                    style={[styles.emojiBtn, recurringForm.emoji === emoji && { backgroundColor: getCategoryColor(recurringForm.category) + '30', borderColor: getCategoryColor(recurringForm.category) }]}
+                    onPress={() => { setRecurringForm({ ...recurringForm, emoji }); setShowRecurringEmoji(false); }}
+                  >
+                    <Text style={styles.emojiBtnText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.label}>Descrição *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Spotify, Netflix, Academia..."
+              placeholderTextColor={Colors.textTertiary}
+              value={recurringForm.description}
+              onChangeText={(v) => setRecurringForm({ ...recurringForm, description: v })}
+            />
+
+            <Text style={styles.label}>Valor (R$) *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0,00"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="numeric"
+              value={recurringForm.amount}
+              onChangeText={(v) => setRecurringForm({ ...recurringForm, amount: formatAmountInput(v) })}
+            />
+
+            <Text style={styles.label}>Dia de cobrança (1–28) *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 15"
+              placeholderTextColor={Colors.textTertiary}
+              keyboardType="number-pad"
+              maxLength={2}
+              value={recurringForm.dayOfMonth}
+              onChangeText={(v) => setRecurringForm({ ...recurringForm, dayOfMonth: v.replace(/\D/g, '') })}
+            />
+
+            <Text style={styles.label}>Fatura (opcional)</Text>
+            <View style={styles.categoryGrid}>
+              <TouchableOpacity
+                style={[styles.catBtn, recurringForm.sectionId === '' && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
+                onPress={() => setRecurringForm({ ...recurringForm, sectionId: '' })}
+              >
+                <Text style={{ fontSize: 18 }}>📋</Text>
+                <Text style={[styles.catBtnText, recurringForm.sectionId === '' && { color: '#fff' }]}>Nenhuma</Text>
+              </TouchableOpacity>
+              {sections.map((s) => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.catBtn, recurringForm.sectionId === s.id && { backgroundColor: s.color, borderColor: s.color }]}
+                  onPress={() => setRecurringForm({ ...recurringForm, sectionId: s.id })}
+                >
+                  <View style={[{ width: 12, height: 12, borderRadius: 6, backgroundColor: s.color }]} />
+                  <Text style={[styles.catBtnText, recurringForm.sectionId === s.id && { color: '#fff' }]} numberOfLines={1}>{s.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Categoria</Text>
+            <View style={styles.categoryGrid}>
+              {BUILT_IN_CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catBtn, recurringForm.category === cat && { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat] }]}
+                  onPress={() => setRecurringForm({ ...recurringForm, category: cat })}
+                >
+                  <Text style={{ fontSize: 18 }}>{CATEGORY_ICONS[cat]}</Text>
+                  <Text style={[styles.catBtnText, recurringForm.category === cat && { color: '#fff' }]}>{CATEGORY_LABELS[cat]}</Text>
+                </TouchableOpacity>
+              ))}
+              {customCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catBtn, recurringForm.category === cat.id && { backgroundColor: cat.color, borderColor: cat.color }]}
+                  onPress={() => setRecurringForm({ ...recurringForm, category: cat.id })}
+                >
+                  <Text style={{ fontSize: 18 }}>{cat.emoji}</Text>
+                  <Text style={[styles.catBtnText, recurringForm.category === cat.id && { color: '#fff' }]}>{cat.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={createRecurring}>
+              <Text style={styles.saveBtnText}>Adicionar recorrente</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <CreateChartModal
         visible={showCreateChart}
         onClose={() => setShowCreateChart(false)}
@@ -1968,6 +2282,19 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+  recurringCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  recurringCardTitle: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  recurringCardSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   sectionCard: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -125,6 +125,7 @@ export interface Expense {
   date: string; // ISO
   createdAt: string;
   sectionId?: string;
+  billingPeriodKey?: string;
 }
 
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -171,6 +172,19 @@ export interface ExpenseChart {
   rangeStart?: string;
   rangeEnd?: string;
   sectionIds: string[] | null;
+  createdAt: string;
+}
+
+export interface RecurringExpense {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  sectionId?: string;
+  dayOfMonth: number; // 1-28
+  active: boolean;
+  emoji: string;
+  lastGeneratedKey?: string; // "YYYY-MM"
   createdAt: string;
 }
 

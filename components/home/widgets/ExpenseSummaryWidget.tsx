@@ -12,7 +12,11 @@ interface Props {
 export function ExpenseSummaryWidget({ expenses, cycleDay }: Props) {
   const router = useRouter();
   const periodKey = currentPeriodKey(cycleDay);
-  const periodExpenses = expenses.filter((e) => isInPeriod(e.date, periodKey, cycleDay));
+  const periodExpenses = expenses.filter((e) =>
+    e.billingPeriodKey
+      ? e.billingPeriodKey === periodKey
+      : isInPeriod(e.date, periodKey, cycleDay)
+  );
   const total = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
