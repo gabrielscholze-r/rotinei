@@ -8,6 +8,7 @@ export interface ImportRow {
   category: string;
   selected: boolean;
   duplicate: boolean;
+  billingPeriodKey?: string;
 }
 
 const CATEGORY_RULES: { keywords: string[]; category: ExpenseCategory }[] = [
@@ -137,7 +138,7 @@ function detectFormat(headerRaw: string): DetectedFormat | null {
   return null;
 }
 
-export function parseNubankCSV(content: string, closingDay?: number): ImportRow[] {
+export function parseNubankCSV(content: string, closingDay?: number, invoiceClosingDate?: Date): ImportRow[] {
   const clean = content.replace(/^\uFEFF/, '');
   const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
@@ -208,6 +209,17 @@ export function parseNubankCSV(content: string, closingDay?: number): ImportRow[
   }
 
   // Nubank format
+  // Derive invoice period key from closing date (e.g. Nubank_2026-06-13.csv → period "2026-05-13")
+  let nubankPeriodKey: string | undefined;
+  if (invoiceClosingDate) {
+    const ps = new Date(
+      invoiceClosingDate.getFullYear(),
+      invoiceClosingDate.getMonth() - 1,
+      invoiceClosingDate.getDate()
+    );
+    nubankPeriodKey = `${ps.getFullYear()}-${String(ps.getMonth() + 1).padStart(2, '0')}-${String(ps.getDate()).padStart(2, '0')}`;
+  }
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
@@ -231,6 +243,7 @@ export function parseNubankCSV(content: string, closingDay?: number): ImportRow[
       category: detectCategory(description),
       selected: true,
       duplicate: false,
+      ...(nubankPeriodKey ? { billingPeriodKey: nubankPeriodKey } : {}),
     });
   }
 
@@ -268,5 +281,6 @@ export function importRowsToExpenses(rows: ImportRow[], sectionId?: string): Exp
       date: r.date,
       createdAt: new Date().toISOString(),
       ...(sectionId ? { sectionId } : {}),
+      ...(r.billingPeriodKey ? { billingPeriodKey: r.billingPeriodKey } : {}),
     }));
 }

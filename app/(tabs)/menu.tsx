@@ -53,7 +53,11 @@ export default function MenuScreen() {
   const now = new Date();
   const activePeriodKey = currentPeriodKey(cycleDay);
   const monthExpenses = expenses
-    .filter((e) => isInPeriod(e.date, activePeriodKey, cycleDay))
+    .filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === activePeriodKey
+        : isInPeriod(e.date, activePeriodKey, cycleDay)
+    )
     .reduce((sum, e) => sum + e.amount, 0);
 
   const todayRoutines = routines.filter(isRoutineForToday);
@@ -64,7 +68,11 @@ export default function MenuScreen() {
   const sortedNotes = [...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   const recentExpenses = expenses
-    .filter((e) => isInPeriod(e.date, activePeriodKey, cycleDay))
+    .filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === activePeriodKey
+        : isInPeriod(e.date, activePeriodKey, cycleDay)
+    )
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
 

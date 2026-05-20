@@ -125,6 +125,7 @@ export interface Expense {
   date: string; // ISO
   createdAt: string;
   sectionId?: string;
+  billingPeriodKey?: string;
 }
 
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {

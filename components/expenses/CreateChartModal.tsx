@@ -60,7 +60,11 @@ function buildPreviewSlices(
   }
 
   if (periodType === 'billing_period') {
-    filtered = filtered.filter((e) => isInPeriod(e.date, billingPeriodKey, cycleDay));
+    filtered = filtered.filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === billingPeriodKey
+        : isInPeriod(e.date, billingPeriodKey, cycleDay)
+    );
   } else if (periodType === 'calendar_month') {
     filtered = filtered.filter((e) => e.date.startsWith(calendarMonth));
   } else {

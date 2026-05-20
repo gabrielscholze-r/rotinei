@@ -521,9 +521,13 @@ export default function ExpensesScreen() {
         copyToCacheDirectory: true,
       });
       if (result.canceled) return;
-      const uri = result.assets[0].uri;
-      const content = await new File(uri).text();
-      const rows = parseNubankCSV(content, selectedSection?.closingDay);
+      const asset = result.assets[0];
+      const content = await new File(asset.uri).text();
+      const filenameMatch = (asset.name ?? '').match(/(\d{4})-(\d{2})-(\d{2})/);
+      const invoiceClosingDate = filenameMatch
+        ? new Date(parseInt(filenameMatch[1]), parseInt(filenameMatch[2]) - 1, parseInt(filenameMatch[3]), 12)
+        : undefined;
+      const rows = parseNubankCSV(content, selectedSection?.closingDay, invoiceClosingDate);
       if (rows.length === 0) {
         Alert.alert('Arquivo inválido', 'Nenhuma transação encontrada. Verifique se o arquivo é um CSV Nubank ou XP Investimentos.');
         return;
@@ -531,12 +535,14 @@ export default function ExpensesScreen() {
       const sectionExpenses = expenses.filter((e) => e.sectionId === selectedSection?.id);
       const norm = (s: string) => s.toLowerCase().trim();
       const isDup = (row: typeof rows[0]) => {
-        const rowPeriod = periodKey(new Date(row.date), effectiveCycleDay);
+        const rowPeriod = row.billingPeriodKey ?? periodKey(new Date(row.date), effectiveCycleDay);
         return sectionExpenses.some(
           (e) =>
             Math.abs(e.amount - row.amount) < 0.01 &&
             norm(e.description) === norm(row.description) &&
-            isInPeriod(e.date, rowPeriod, effectiveCycleDay)
+            (e.billingPeriodKey
+              ? e.billingPeriodKey === rowPeriod
+              : isInPeriod(e.date, rowPeriod, effectiveCycleDay))
         );
       };
       const markedRows = rows.map((row) => {
@@ -655,7 +661,11 @@ export default function ExpensesScreen() {
 
   const periodExpenses = expenses
     .filter((e) => e.sectionId === selectedSection?.id)
-    .filter((e) => isInPeriod(e.date, selectedPeriod, effectiveCycleDay));
+    .filter((e) =>
+      e.billingPeriodKey
+        ? e.billingPeriodKey === selectedPeriod
+        : isInPeriod(e.date, selectedPeriod, effectiveCycleDay)
+    );
   const total = periodExpenses.reduce((s, e) => s + e.amount, 0);
 
   const allCategoryKeys = [
