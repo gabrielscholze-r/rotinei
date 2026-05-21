@@ -188,6 +188,36 @@ export interface RecurringExpense {
   createdAt: string;
 }
 
+export interface FeedbackPayload {
+  title: string;
+  description: string;
+}
+
+export type FeedbackScreen =
+  | 'Home'
+  | 'Menu'
+  | 'Login'
+  | 'Perfil'
+  | 'Rotinas'
+  | 'Notas'
+  | 'Listas'
+  | 'Gastos'
+  | 'Configurações'
+  | 'Outro';
+
+export const FEEDBACK_SCREENS: FeedbackScreen[] = [
+  'Home',
+  'Menu',
+  'Rotinas',
+  'Notas',
+  'Listas',
+  'Gastos',
+  'Login',
+  'Perfil',
+  'Configurações',
+  'Outro',
+];
+
 export type WidgetType =
   | 'routines_today'
   | 'expense_summary'

@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { DraggableWidgetList } from '../../components/home/DraggableWidgetList';
 import { WidgetPickerModal } from '../../components/home/WidgetPickerModal';
+import { FeedbackModal } from '../../components/feedback/FeedbackModal';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Routine, RoutineLog, TodoList, Note, Expense, Goal,
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
@@ -133,6 +135,21 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => setShowFeedback(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.reportIconWrap}>
+            <Ionicons name="warning-outline" size={20} color={Colors.warning} />
+          </View>
+          <View style={styles.reportContent}>
+            <Text style={styles.reportTitle}>Reportar problema</Text>
+            <Text style={styles.reportSub}>Encontrou algo errado? Nos avise.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+        </TouchableOpacity>
+
         {widgets.length === 0 && !isEditMode ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>🏠</Text>
@@ -181,6 +198,11 @@ export default function HomeScreen() {
         notes={notes}
         goals={goals}
       />
+
+      <FeedbackModal
+        visible={showFeedback}
+        onClose={() => setShowFeedback(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -213,6 +235,28 @@ const styles = StyleSheet.create({
   },
   editBtnText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
   editBtnTextActive: { color: '#fff' },
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.warningLight,
+  },
+  reportIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: Colors.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportContent: { flex: 1 },
+  reportTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  reportSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
