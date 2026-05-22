@@ -247,55 +247,55 @@ export default function TodoListScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: list.color }]}>
-        <TouchableOpacity
-          onPress={() => {
-            if (currentGroupId !== null) { navigateBack(); }
-            else { router.back(); }
-          }}
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitle}>
-          <Text style={styles.icon}>{list.icon}</Text>
-          <Text style={styles.title} numberOfLines={1}>
-            {breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : list.title}
-          </Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={() => {
+              if (currentGroupId !== null) { navigateBack(); }
+              else { router.back(); }
+            }}
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerTitle}>
+            <Text style={styles.icon}>{list.icon}</Text>
+            <Text style={styles.title} numberOfLines={1}>
+              {breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : list.title}
+            </Text>
+          </View>
+          {done.length > 0 && (
+            <TouchableOpacity onPress={clearDone} hitSlop={8}>
+              <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+          {done.length === 0 && <View style={{ width: 24 }} />}
         </View>
-        {done.length > 0 && (
-          <TouchableOpacity onPress={clearDone} hitSlop={8}>
-            <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
-          </TouchableOpacity>
-        )}
-        {done.length === 0 && <View style={{ width: 24 }} />}
-      </View>
 
-      {/* Breadcrumb */}
-      {breadcrumb.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.breadcrumbScroll}
-          contentContainerStyle={styles.breadcrumbContent}
-        >
-          <TouchableOpacity onPress={() => navigateToCrumb(-1)}>
-            <Text style={styles.breadcrumbItem}>{list.title}</Text>
-          </TouchableOpacity>
-          {breadcrumb.map((g, i) => (
-            <View key={g.id} style={styles.breadcrumbRow}>
-              <Ionicons name="chevron-forward" size={13} color={Colors.textTertiary} />
-              <TouchableOpacity onPress={() => navigateToCrumb(i)}>
-                <Text style={[
-                  styles.breadcrumbItem,
-                  i === breadcrumb.length - 1 && { color: list.color, fontWeight: '700' as const },
-                ]}>
-                  {g.name}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
-      )}
+        {breadcrumb.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.breadcrumbContent}
+          >
+            <TouchableOpacity onPress={() => navigateToCrumb(-1)}>
+              <Text style={styles.breadcrumbItem}>{list.title}</Text>
+            </TouchableOpacity>
+            {breadcrumb.map((g, i) => (
+              <View key={g.id} style={styles.breadcrumbRow}>
+                <Ionicons name="chevron-forward" size={13} color={Colors.textTertiary} />
+                <TouchableOpacity onPress={() => navigateToCrumb(i)}>
+                  <Text style={[
+                    styles.breadcrumbItem,
+                    i === breadcrumb.length - 1 && { color: list.color, fontWeight: '700' as const },
+                  ]}>
+                    {g.name}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {childGroups.length === 0 && currentItems.length === 0 && (
@@ -475,21 +475,19 @@ export default function TodoListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
-    borderBottomWidth: 3, gap: 12,
+    flexDirection: 'column',
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
+    borderBottomWidth: 3,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   icon: { fontSize: 22 },
   title: { flex: 1, fontSize: 20, fontWeight: '800', color: Colors.text },
 
   // Breadcrumb
-  breadcrumbScroll: {
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
   breadcrumbContent: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 10, gap: 4, paddingRight: 32,
+    paddingTop: 4, gap: 4,
   },
   breadcrumbRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   breadcrumbItem: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
