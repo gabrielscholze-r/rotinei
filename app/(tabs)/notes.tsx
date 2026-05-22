@@ -88,6 +88,7 @@ export default function NotesScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = 72 + insets.bottom;
 
   const [notes, setNotes] = useState<Note[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -483,7 +484,7 @@ export default function NotesScreen() {
             </ScrollView>
           )}
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 96 }]}>
             {/* Group cards */}
             {!search && childGroups.map(group => (
               <TouchableOpacity
@@ -563,7 +564,7 @@ export default function NotesScreen() {
             />
           )}
           {showFabMenu && (
-            <View style={[styles.fabMenu, { bottom: insets.bottom + 88 }]}>
+            <View style={[styles.fabMenu, { bottom: tabBarHeight + 86 }]}>
               <TouchableOpacity style={styles.fabMenuRow} onPress={openCreateGroupModal}>
                 <Text style={styles.fabMenuLabel}>Novo grupo</Text>
                 <View style={[styles.fabMini, { backgroundColor: Colors.listColors[1] }]}>
@@ -582,7 +583,7 @@ export default function NotesScreen() {
             </View>
           )}
           <TouchableOpacity
-            style={[styles.fabMain, showFabMenu && styles.fabMainActive, { bottom: insets.bottom + 24 }]}
+            style={[styles.fabMain, showFabMenu && styles.fabMainActive, { bottom: tabBarHeight + 16 }]}
             onPress={() => setShowFabMenu(v => !v)}
           >
             <Ionicons name={showFabMenu ? 'close' : 'add'} size={28} color="#fff" />
@@ -629,7 +630,7 @@ export default function NotesScreen() {
       {/* ── PRIVADO: unlocked ── */}
       {notesTab === 'privado' && pinUnlocked && (
         <>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: tabBarHeight + 96 }]}>
             {privateNotes.length === 0 && (
               <View style={styles.empty}>
                 <Ionicons name="lock-closed-outline" size={56} color={Colors.textTertiary} />
@@ -663,7 +664,7 @@ export default function NotesScreen() {
             </View>
           </ScrollView>
           <TouchableOpacity
-            style={[styles.fabMain, { bottom: insets.bottom + 24 }]}
+            style={[styles.fabMain, { bottom: tabBarHeight + 16 }]}
             onPress={openNewPrivate}
           >
             <Ionicons name="add" size={28} color="#fff" />
@@ -848,7 +849,7 @@ const styles = StyleSheet.create({
   groupName: { fontSize: 15, fontWeight: '700', color: Colors.text },
   groupMeta: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
 
-  scroll: { paddingHorizontal: 20, paddingBottom: 120 },
+  scroll: { paddingHorizontal: 20 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.textSecondary },
   emptySub: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center', paddingHorizontal: 20 },

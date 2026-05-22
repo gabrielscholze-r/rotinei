@@ -31,7 +31,7 @@ const DEFAULT_WIDGETS: HomeWidget[] = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = 64 + insets.bottom;
+  const tabBarHeight = 72 + insets.bottom;
 
   const [widgets, setWidgets] = useState<HomeWidget[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
