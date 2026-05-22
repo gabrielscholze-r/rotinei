@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { TodoList, TodoItem, TodoGroup } from '../../lib/types';
+import { CustomTabBar } from '../../components/CustomTabBar';
 
 export default function TodoListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,20 +19,17 @@ export default function TodoListScreen() {
   const [list, setList] = useState<TodoList | null>(null);
   const [allLists, setAllLists] = useState<TodoList[]>([]);
 
-  // Group state
-  const [todoGroups, setTodoGroups] = useState<TodoGroup[]>([]);
-  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
-  const [breadcrumb, setBreadcrumb] = useState<TodoGroup[]>([]);
-  const [showGroupModal, setShowGroupModal] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<TodoGroup | null>(null);
-  const [groupName, setGroupName] = useState('');
+  const [topics, setTopics] = useState<TodoGroup[]>([]);
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+  const [showTopicModal, setShowTopicModal] = useState(false);
+  const [editingTopic, setEditingTopic] = useState<TodoGroup | null>(null);
+  const [topicName, setTopicName] = useState('');
 
-  // Item state
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<TodoItem | null>(null);
   const [itemText, setItemText] = useState('');
+  const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
 
-  // Speed dial
   const [showFabMenu, setShowFabMenu] = useState(false);
 
   useEffect(() => { load(); }, [id]);
@@ -44,7 +42,7 @@ export default function TodoListScreen() {
     const all = lists ?? [];
     setAllLists(all);
     setList(all.find((l) => l.id === id) ?? null);
-    setTodoGroups((groups ?? []).filter(g => g.listId === id));
+    setTopics((groups ?? []).filter(g => g.listId === id));
   }
 
   async function persist(updated: TodoList) {
@@ -54,92 +52,90 @@ export default function TodoListScreen() {
     setList(updated);
   }
 
-  // ── Group navigation ──────────────────────────────────────────
+  // ── Topic actions ──────────────────────────────────────────────
 
-  function enterGroup(group: TodoGroup) {
-    setBreadcrumb(prev => [...prev, group]);
-    setCurrentGroupId(group.id);
+  function toggleExpanded(topicId: string) {
+    setExpandedTopics(prev => {
+      const next = new Set(prev);
+      if (next.has(topicId)) next.delete(topicId);
+      else next.add(topicId);
+      return next;
+    });
   }
 
-  function navigateBack() {
-    const newCrumb = breadcrumb.slice(0, -1);
-    setBreadcrumb(newCrumb);
-    setCurrentGroupId(newCrumb.length > 0 ? newCrumb[newCrumb.length - 1].id : null);
+  function checkAllInTopic(topicId: string) {
+    if (!list) return;
+    const topicItems = list.items.filter(i => i.groupId === topicId);
+    const allDone = topicItems.length > 0 && topicItems.every(i => i.done);
+    persist({
+      ...list,
+      items: list.items.map(i =>
+        i.groupId === topicId ? { ...i, done: !allDone } : i
+      ),
+    });
   }
 
-  function navigateToCrumb(index: number) {
-    if (index < 0) { setBreadcrumb([]); setCurrentGroupId(null); return; }
-    const newCrumb = breadcrumb.slice(0, index + 1);
-    setBreadcrumb(newCrumb);
-    setCurrentGroupId(newCrumb[newCrumb.length - 1].id);
-  }
-
-  function openCreateGroupModal() {
-    setEditingGroup(null);
-    setGroupName('');
-    setShowGroupModal(true);
+  function openCreateTopicModal() {
+    setEditingTopic(null);
+    setTopicName('');
+    setShowTopicModal(true);
     setShowFabMenu(false);
   }
 
-  function openEditGroupModal(group: TodoGroup) {
-    setEditingGroup(group);
-    setGroupName(group.name);
-    setShowGroupModal(true);
+  function openEditTopicModal(topic: TodoGroup) {
+    setEditingTopic(topic);
+    setTopicName(topic.name);
+    setShowTopicModal(true);
   }
 
-  async function saveGroup() {
-    if (!groupName.trim()) { Alert.alert('Erro', 'Informe um nome para o subgrupo.'); return; }
+  async function saveTopic() {
+    if (!topicName.trim()) { Alert.alert('Erro', 'Informe um nome para o tópico.'); return; }
     const allGroups = await getItem<TodoGroup[]>(KEYS.TODO_GROUPS) ?? [];
     let updatedAll: TodoGroup[];
-    if (editingGroup) {
+    if (editingTopic) {
       updatedAll = allGroups.map(g =>
-        g.id === editingGroup.id ? { ...g, name: groupName.trim() } : g
+        g.id === editingTopic.id ? { ...g, name: topicName.trim() } : g
       );
-      setTodoGroups(updatedAll.filter(g => g.listId === id));
+      setTopics(updatedAll.filter(g => g.listId === id));
     } else {
-      const group: TodoGroup = {
+      const topic: TodoGroup = {
         id: Date.now().toString(),
-        name: groupName.trim(),
+        name: topicName.trim(),
         listId: id as string,
-        parentId: currentGroupId,
+        parentId: null,
         createdAt: new Date().toISOString(),
       };
-      updatedAll = [...allGroups, group];
-      setTodoGroups(prev => [...prev, group]);
+      updatedAll = [...allGroups, topic];
+      setTopics(prev => [...prev, topic]);
+      setExpandedTopics(prev => new Set([...prev, topic.id]));
     }
     await setItem(KEYS.TODO_GROUPS, updatedAll);
-    setShowGroupModal(false);
-    setEditingGroup(null);
-    setGroupName('');
+    setShowTopicModal(false);
+    setEditingTopic(null);
+    setTopicName('');
   }
 
-  function showGroupActions(group: TodoGroup) {
-    Alert.alert(group.name, undefined, [
-      { text: 'Editar', onPress: () => openEditGroupModal(group) },
-      { text: 'Excluir', style: 'destructive', onPress: () => deleteGroup(group) },
+  function showTopicActions(topic: TodoGroup) {
+    Alert.alert(topic.name, undefined, [
+      { text: 'Editar', onPress: () => openEditTopicModal(topic) },
+      { text: 'Excluir', style: 'destructive', onPress: () => deleteTopic(topic) },
       { text: 'Cancelar', style: 'cancel' },
     ]);
   }
 
-  async function deleteGroup(group: TodoGroup) {
-    Alert.alert(`Excluir "${group.name}"`, 'Remove o subgrupo e todos os itens/subgrupos dentro.', [
+  async function deleteTopic(topic: TodoGroup) {
+    Alert.alert(`Excluir "${topic.name}"`, 'Remove o tópico e todos os itens dentro.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',
         style: 'destructive',
         onPress: async () => {
           const allGroups = await getItem<TodoGroup[]>(KEYS.TODO_GROUPS) ?? [];
-          const getAllDescendants = (pid: string): string[] => {
-            const children = allGroups.filter(g => g.parentId === pid && g.listId === id);
-            return [pid, ...children.flatMap(c => getAllDescendants(c.id))];
-          };
-          const idsToDelete = new Set(getAllDescendants(group.id));
-          const updatedAllGroups = allGroups.filter(g => !idsToDelete.has(g.id));
+          const updatedAllGroups = allGroups.filter(g => g.id !== topic.id);
           await setItem(KEYS.TODO_GROUPS, updatedAllGroups);
-          setTodoGroups(updatedAllGroups.filter(g => g.listId === id));
+          setTopics(updatedAllGroups.filter(g => g.listId === id));
           if (list) {
-            const updatedItems = list.items.filter(i => !idsToDelete.has(i.groupId ?? ''));
-            await persist({ ...list, items: updatedItems });
+            await persist({ ...list, items: list.items.filter(i => i.groupId !== topic.id) });
           }
         },
       },
@@ -148,9 +144,10 @@ export default function TodoListScreen() {
 
   // ── Item CRUD ─────────────────────────────────────────────────
 
-  function openAddItem() {
+  function openAddItem(groupId: string | null = null) {
     setEditingItem(null);
     setItemText('');
+    setAddingToGroupId(groupId);
     setShowItemModal(true);
     setShowFabMenu(false);
   }
@@ -158,6 +155,7 @@ export default function TodoListScreen() {
   function openEditItem(item: TodoItem) {
     setEditingItem(item);
     setItemText(item.text);
+    setAddingToGroupId(null);
     setShowItemModal(true);
   }
 
@@ -183,7 +181,7 @@ export default function TodoListScreen() {
         id: Date.now().toString(),
         text: itemText.trim(),
         done: false,
-        groupId: currentGroupId,
+        groupId: addingToGroupId,
         createdAt: new Date().toISOString(),
       };
       persist({ ...list, items: [...list.items, item] });
@@ -191,6 +189,7 @@ export default function TodoListScreen() {
     setShowItemModal(false);
     setItemText('');
     setEditingItem(null);
+    setAddingToGroupId(null);
   }
 
   function toggleItem(itemId: string) {
@@ -208,130 +207,143 @@ export default function TodoListScreen() {
 
   function clearDone() {
     if (!list) return;
-    const doneInGroup = list.items.filter(
-      i => i.done && (i.groupId ?? null) === currentGroupId
-    );
-    if (doneInGroup.length === 0) return;
-    Alert.alert('Limpar concluídos', 'Remover todos os itens marcados nesta seção?', [
+    const doneItems = list.items.filter(i => i.done);
+    if (doneItems.length === 0) return;
+    Alert.alert('Limpar concluídos', 'Remover todos os itens marcados?', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Limpar',
-        onPress: () => {
-          const idsToRemove = new Set(doneInGroup.map(i => i.id));
-          persist({ ...list, items: list.items.filter(i => !idsToRemove.has(i.id)) });
-        },
-      },
+      { text: 'Limpar', onPress: () => persist({ ...list, items: list!.items.filter(i => !i.done) }) },
     ]);
   }
 
   if (!list) return null;
 
-  // ── Derived ───────────────────────────────────────────────────
-
-  const childGroups = todoGroups.filter(g => g.parentId === currentGroupId);
-  const currentItems = list.items.filter(i => (i.groupId ?? null) === currentGroupId);
-  const pending = currentItems.filter(i => !i.done);
-  const done = currentItems.filter(i => i.done);
-
-  function countGroupContent(groupId: string) {
-    const itemCount = list!.items.filter(i => i.groupId === groupId).length;
-    const subCount = todoGroups.filter(g => g.parentId === groupId).length;
-    const parts: string[] = [];
-    if (itemCount > 0) parts.push(`${itemCount} item${itemCount !== 1 ? 'ns' : ''}`);
-    if (subCount > 0) parts.push(`${subCount} subgrupo${subCount !== 1 ? 's' : ''}`);
-    return parts.length > 0 ? parts.join(' • ') : 'Vazio';
-  }
+  const ungroupedPending = list.items.filter(i => !i.groupId && !i.done);
+  const ungroupedDone = list.items.filter(i => !i.groupId && i.done);
+  const hasDone = list.items.some(i => i.done);
 
   return (
     <SafeAreaView style={styles.container}>
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: list.color }]}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => {
-              if (currentGroupId !== null) { navigateBack(); }
-              else { router.back(); }
-            }}
-            hitSlop={8}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
-          </TouchableOpacity>
-          <View style={styles.headerTitle}>
-            <Text style={styles.icon}>{list.icon}</Text>
-            <Text style={styles.title} numberOfLines={1}>
-              {breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : list.title}
-            </Text>
-          </View>
-          {done.length > 0 && (
-            <TouchableOpacity onPress={clearDone} hitSlop={8}>
-              <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-          {done.length === 0 && <View style={{ width: 24 }} />}
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerTitle}>
+          <Text style={styles.icon}>{list.icon}</Text>
+          <Text style={styles.title} numberOfLines={1}>{list.title}</Text>
         </View>
-
-        {breadcrumb.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.breadcrumbContent}
-          >
-            <TouchableOpacity onPress={() => navigateToCrumb(-1)}>
-              <Text style={styles.breadcrumbItem}>{list.title}</Text>
-            </TouchableOpacity>
-            {breadcrumb.map((g, i) => (
-              <View key={g.id} style={styles.breadcrumbRow}>
-                <Ionicons name="chevron-forward" size={13} color={Colors.textTertiary} />
-                <TouchableOpacity onPress={() => navigateToCrumb(i)}>
-                  <Text style={[
-                    styles.breadcrumbItem,
-                    i === breadcrumb.length - 1 && { color: list.color, fontWeight: '700' as const },
-                  ]}>
-                    {g.name}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
+        {hasDone ? (
+          <TouchableOpacity onPress={clearDone} hitSlop={8}>
+            <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24 }} />
         )}
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {childGroups.length === 0 && currentItems.length === 0 && (
+        {topics.length === 0 && list.items.length === 0 && (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              {currentGroupId
-                ? 'Subgrupo vazio. Toque em + para adicionar.'
-                : 'Lista vazia. Adicione o primeiro item!'}
-            </Text>
+            <Text style={styles.emptyText}>Lista vazia. Adicione o primeiro item!</Text>
           </View>
         )}
 
-        {/* Subgroup cards */}
-        {childGroups.map(group => (
-          <TouchableOpacity
-            key={group.id}
-            style={[styles.groupCard, { borderLeftColor: list.color }]}
-            onPress={() => enterGroup(group)}
-            onLongPress={() => showGroupActions(group)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.groupCardLeft}>
-              <View style={[styles.groupIcon, { backgroundColor: list.color + '22' }]}>
-                <Ionicons name="folder" size={18} color={list.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.groupName}>{group.name}</Text>
-                <Text style={styles.groupMeta}>{countGroupContent(group.id)}</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-          </TouchableOpacity>
-        ))}
+        {/* Topic accordion sections */}
+        {topics.map(topic => {
+          const topicItems = list.items.filter(i => i.groupId === topic.id);
+          const topicPending = topicItems.filter(i => !i.done);
+          const topicDone = topicItems.filter(i => i.done);
+          const allDone = topicItems.length > 0 && topicItems.every(i => i.done);
+          const isExpanded = expandedTopics.has(topic.id);
 
-        {/* Pending items */}
-        {pending.map((item) => (
+          return (
+            <View key={topic.id} style={styles.topicBlock}>
+              <TouchableOpacity
+                style={[styles.topicHeader, { borderLeftColor: list.color }]}
+                onPress={() => toggleExpanded(topic.id)}
+                onLongPress={() => showTopicActions(topic)}
+                activeOpacity={0.8}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.topicCheckBtn,
+                    { borderColor: list.color },
+                    allDone && { backgroundColor: list.color },
+                  ]}
+                  onPress={() => checkAllInTopic(topic.id)}
+                  hitSlop={6}
+                >
+                  {allDone && <Ionicons name="checkmark" size={13} color="#fff" />}
+                </TouchableOpacity>
+
+                <Text style={[styles.topicName, allDone && styles.topicNameDone]} numberOfLines={1}>
+                  {topic.name}
+                </Text>
+
+                {topicItems.length > 0 && (
+                  <Text style={styles.topicCount}>{topicDone.length}/{topicItems.length}</Text>
+                )}
+
+                <Ionicons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={18}
+                  color={Colors.textTertiary}
+                />
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={[styles.topicItems, { borderLeftColor: list.color + '40' }]}>
+                  {topicPending.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.item}
+                      onPress={() => toggleItem(item.id)}
+                      onLongPress={() => showItemActions(item)}
+                      activeOpacity={0.7}
+                    >
+                      <TouchableOpacity
+                        style={[styles.checkbox, { borderColor: list.color }]}
+                        onPress={() => toggleItem(item.id)}
+                      />
+                      <Text style={styles.itemText}>{item.text}</Text>
+                      <TouchableOpacity onPress={() => showItemActions(item)} hitSlop={8}>
+                        <Ionicons name="ellipsis-horizontal" size={18} color={Colors.textTertiary} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                  {topicDone.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.item, styles.itemDone]}
+                      onPress={() => toggleItem(item.id)}
+                      onLongPress={() => showItemActions(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.checkbox, styles.checkboxDone, { backgroundColor: list.color, borderColor: list.color }]}>
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                      </View>
+                      <Text style={styles.itemTextDone}>{item.text}</Text>
+                      <TouchableOpacity onPress={() => showItemActions(item)} hitSlop={8}>
+                        <Ionicons name="ellipsis-horizontal" size={18} color={Colors.textTertiary} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.addInsideTopic}
+                    onPress={() => openAddItem(topic.id)}
+                  >
+                    <Ionicons name="add" size={15} color={list.color} />
+                    <Text style={[styles.addInsideTopicText, { color: list.color }]}>Adicionar item</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Ungrouped items */}
+        {ungroupedPending.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.item}
@@ -350,11 +362,10 @@ export default function TodoListScreen() {
           </TouchableOpacity>
         ))}
 
-        {/* Done items */}
-        {done.length > 0 && (
+        {ungroupedDone.length > 0 && (
           <>
-            <Text style={styles.sectionLabel}>Concluídos ({done.length})</Text>
-            {done.map((item) => (
+            <Text style={styles.sectionLabel}>Concluídos ({ungroupedDone.length})</Text>
+            {ungroupedDone.map((item) => (
               <TouchableOpacity
                 key={item.id}
                 style={[styles.item, styles.itemDone]}
@@ -385,13 +396,13 @@ export default function TodoListScreen() {
       )}
       {showFabMenu && (
         <View style={[styles.fabMenu, { bottom: insets.bottom + 88 }]}>
-          <TouchableOpacity style={styles.fabMenuRow} onPress={openCreateGroupModal}>
-            <Text style={styles.fabMenuLabel}>Novo subgrupo</Text>
+          <TouchableOpacity style={styles.fabMenuRow} onPress={openCreateTopicModal}>
+            <Text style={styles.fabMenuLabel}>Novo tópico</Text>
             <View style={[styles.fabMini, { backgroundColor: Colors.textSecondary }]}>
-              <Ionicons name="folder" size={20} color="#fff" />
+              <Ionicons name="list" size={20} color="#fff" />
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.fabMenuRow} onPress={openAddItem}>
+          <TouchableOpacity style={styles.fabMenuRow} onPress={() => openAddItem(null)}>
             <Text style={styles.fabMenuLabel}>Novo item</Text>
             <View style={[styles.fabMini, { backgroundColor: list.color }]}>
               <Ionicons name="add-circle" size={20} color="#fff" />
@@ -402,19 +413,22 @@ export default function TodoListScreen() {
       <TouchableOpacity
         style={[
           styles.fab,
-          { backgroundColor: showFabMenu ? Colors.danger : list.color, bottom: insets.bottom + 24 },
+          { backgroundColor: showFabMenu ? Colors.danger : list.color, bottom: insets.bottom + 24 + 72 },
         ]}
         onPress={() => setShowFabMenu(v => !v)}
       >
         <Ionicons name={showFabMenu ? 'close' : 'add'} size={28} color="#fff" />
       </TouchableOpacity>
 
-      {/* Item add/edit modal */}
+      {/* Item modal */}
       <Modal visible={showItemModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{editingItem ? 'Editar item' : 'Novo item'}</Text>
-            <TouchableOpacity onPress={() => { setShowItemModal(false); setItemText(''); setEditingItem(null); }} hitSlop={8}>
+            <TouchableOpacity
+              onPress={() => { setShowItemModal(false); setItemText(''); setEditingItem(null); setAddingToGroupId(null); }}
+              hitSlop={8}
+            >
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -429,22 +443,22 @@ export default function TodoListScreen() {
               onSubmitEditing={saveItemModal}
               returnKeyType="done"
             />
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: list.color }]}
-              onPress={saveItemModal}
-            >
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: list.color }]} onPress={saveItemModal}>
               <Text style={styles.saveBtnText}>{editingItem ? 'Salvar' : 'Adicionar'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
       </Modal>
 
-      {/* Group create/edit modal */}
-      <Modal visible={showGroupModal} animationType="slide" presentationStyle="pageSheet">
+      {/* Topic modal */}
+      <Modal visible={showTopicModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{editingGroup ? 'Editar subgrupo' : 'Novo subgrupo'}</Text>
-            <TouchableOpacity onPress={() => { setShowGroupModal(false); setEditingGroup(null); setGroupName(''); }} hitSlop={8}>
+            <Text style={styles.modalTitle}>{editingTopic ? 'Editar tópico' : 'Novo tópico'}</Text>
+            <TouchableOpacity
+              onPress={() => { setShowTopicModal(false); setEditingTopic(null); setTopicName(''); }}
+              hitSlop={8}
+            >
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -452,22 +466,21 @@ export default function TodoListScreen() {
             <TextInput
               autoFocus
               style={styles.modalInput}
-              placeholder="Nome do subgrupo..."
+              placeholder="Ex: Mercado, Farmácia, Limpeza..."
               placeholderTextColor={Colors.textTertiary}
-              value={groupName}
-              onChangeText={setGroupName}
-              onSubmitEditing={saveGroup}
+              value={topicName}
+              onChangeText={setTopicName}
+              onSubmitEditing={saveTopic}
               returnKeyType="done"
             />
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: list.color }]}
-              onPress={saveGroup}
-            >
-              <Text style={styles.saveBtnText}>{editingGroup ? 'Salvar' : 'Criar subgrupo'}</Text>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: list.color }]} onPress={saveTopic}>
+              <Text style={styles.saveBtnText}>{editingTopic ? 'Salvar' : 'Criar tópico'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
       </Modal>
+
+      <CustomTabBar />
     </SafeAreaView>
   );
 }
@@ -475,24 +488,15 @@ export default function TodoListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'column',
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10,
     borderBottomWidth: 3,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   icon: { fontSize: 22 },
   title: { flex: 1, fontSize: 20, fontWeight: '800', color: Colors.text },
 
-  // Breadcrumb
-  breadcrumbContent: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingTop: 4, gap: 4,
-  },
-  breadcrumbRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  breadcrumbItem: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
-
-  scroll: { padding: 20, paddingBottom: 120 },
+  scroll: { padding: 20, paddingBottom: 192 },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 15, color: Colors.textTertiary, textAlign: 'center', paddingHorizontal: 20 },
   sectionLabel: {
@@ -500,23 +504,34 @@ const styles = StyleSheet.create({
     marginTop: 20, marginBottom: 8,
   },
 
-  // Group card
-  groupCard: {
-    flexDirection: 'row', alignItems: 'center',
+  // Topic accordion
+  topicBlock: { marginBottom: 10 },
+  topicHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: Colors.card, borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 10, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 14, paddingVertical: 13,
+    borderWidth: 1, borderColor: Colors.border,
     borderLeftWidth: 4,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
   },
-  groupCardLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  groupIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+  topicCheckBtn: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 2, alignItems: 'center', justifyContent: 'center',
   },
-  groupName: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  groupMeta: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+  topicName: { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text },
+  topicNameDone: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
+  topicCount: { fontSize: 12, color: Colors.textTertiary, fontWeight: '600' },
+  topicItems: {
+    marginTop: 2, marginLeft: 8,
+    borderLeftWidth: 2, paddingLeft: 10,
+    paddingTop: 4,
+  },
+  addInsideTopic: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 10, paddingHorizontal: 2,
+  },
+  addInsideTopicText: { fontSize: 13, fontWeight: '600' },
 
   // Items
   item: {
