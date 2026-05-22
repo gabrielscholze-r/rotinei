@@ -86,7 +86,7 @@ export default function MenuScreen() {
     return customCategories.find((c) => c.id === cat)?.name ?? cat;
   }
 
-  const tabBarHeight = 64 + insets.bottom;
+  const tabBarHeight = 72 + insets.bottom;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>

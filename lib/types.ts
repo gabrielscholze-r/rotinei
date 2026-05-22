@@ -67,10 +67,28 @@ export interface PrivateNote {
   updatedAt: string;
 }
 
+export interface NoteGroup {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  parentId: string | null;
+  createdAt: string;
+}
+
 export interface TodoItem {
   id: string;
   text: string;
   done: boolean;
+  groupId?: string | null;
+  createdAt: string;
+}
+
+export interface TodoGroup {
+  id: string;
+  name: string;
+  listId: string;
+  parentId: string | null;
   createdAt: string;
 }
 
@@ -88,6 +106,7 @@ export interface Note {
   title: string;
   content: string;
   color: string;
+  groupId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

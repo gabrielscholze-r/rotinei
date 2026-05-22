@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
-import { TodoList } from '../../lib/types';
+import { TodoList, TodoGroup } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -60,10 +60,18 @@ export default function TodosScreen() {
     setShowAdd(false);
   }
 
-  function deleteList(id: string) {
+  async function deleteList(id: string) {
     Alert.alert('Excluir lista', 'Tem certeza?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => saveLists(lists.filter((l) => l.id !== id)) },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          saveLists(lists.filter((l) => l.id !== id));
+          const allGroups = await getItem<TodoGroup[]>(KEYS.TODO_GROUPS) ?? [];
+          await setItem(KEYS.TODO_GROUPS, allGroups.filter(g => g.listId !== id));
+        },
+      },
     ]);
   }
 

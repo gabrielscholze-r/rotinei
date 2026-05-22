@@ -16,7 +16,9 @@ export async function removeItem(key: string): Promise<void> {
 export const KEYS = {
   MEDICATIONS: 'medications',
   TODO_LISTS: 'todo_lists',
+  TODO_GROUPS: 'todo_groups',
   NOTES: 'notes',
+  NOTE_GROUPS: 'note_groups',
   EXPENSES: 'expenses',
   BILLING_CYCLE_DAY: 'billing_cycle_day',
   CUSTOM_CATEGORIES: 'custom_categories',

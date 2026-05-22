@@ -44,7 +44,7 @@ export function CustomTabBar() {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 8, height: 64 + insets.bottom }]}>
+    <View style={[styles.container, { paddingBottom: insets.bottom + 8, height: 72 + insets.bottom }]}>
       {TABS.map((tab) => {
         const active = isActive(tab.match);
         return (
