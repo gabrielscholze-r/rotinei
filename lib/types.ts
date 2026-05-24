@@ -81,6 +81,7 @@ export interface TodoItem {
   text: string;
   done: boolean;
   groupId?: string | null;
+  order?: number;
   createdAt: string;
 }
 
@@ -89,6 +90,7 @@ export interface TodoGroup {
   name: string;
   listId: string;
   parentId: string | null;
+  order?: number;
   createdAt: string;
 }
 

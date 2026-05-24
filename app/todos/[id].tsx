@@ -1,15 +1,19 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Modal,
+  TextInput, Alert, Modal, PanResponder,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { TodoList, TodoItem, TodoGroup } from '../../lib/types';
 import { CustomTabBar } from '../../components/CustomTabBar';
+
+const ITEM_GAP = 8;
+const TOPIC_GAP = 10;
 
 export default function TodoListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,8 +22,14 @@ export default function TodoListScreen() {
 
   const [list, setList] = useState<TodoList | null>(null);
   const [allLists, setAllLists] = useState<TodoList[]>([]);
+  const listRef = useRef<TodoList | null>(null);
 
   const [topics, setTopics] = useState<TodoGroup[]>([]);
+  const [localTopics, setLocalTopics] = useState<TodoGroup[]>([]);
+  const localTopicsRef = useRef<TodoGroup[]>([]);
+  const topicHeights = useRef<Record<string, number>>({});
+  const itemHeights = useRef<Record<string, number>>({});
+
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [editingTopic, setEditingTopic] = useState<TodoGroup | null>(null);
@@ -31,6 +41,9 @@ export default function TodoListScreen() {
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
 
   const [showFabMenu, setShowFabMenu] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [draggingTopicId, setDraggingTopicId] = useState<string | null>(null);
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
 
   useEffect(() => { load(); }, [id]);
 
@@ -41,15 +54,167 @@ export default function TodoListScreen() {
     ]);
     const all = lists ?? [];
     setAllLists(all);
-    setList(all.find((l) => l.id === id) ?? null);
-    setTopics((groups ?? []).filter(g => g.listId === id));
+    const found = all.find((l) => l.id === id) ?? null;
+    setList(found);
+    listRef.current = found;
+    const myTopics = (groups ?? []).filter(g => g.listId === id);
+    setTopics(myTopics);
   }
+
+  useEffect(() => {
+    const sorted = [...topics].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    setLocalTopics(sorted);
+    localTopicsRef.current = sorted;
+  }, [topics]);
+
+  useEffect(() => {
+    listRef.current = list;
+  }, [list]);
 
   async function persist(updated: TodoList) {
     const updatedAll = allLists.map((l) => (l.id === id ? updated : l));
     await setItem(KEYS.TODO_LISTS, updatedAll);
     setAllLists(updatedAll);
     setList(updated);
+  }
+
+  function visualUpdateList(updated: TodoList) {
+    setList(updated);
+    listRef.current = updated;
+  }
+
+  async function persistItemsAfterDrag(updatedItems: TodoItem[]) {
+    const lists = await getItem<TodoList[]>(KEYS.TODO_LISTS) ?? [];
+    const currentList = lists.find(l => l.id === id);
+    if (!currentList) return;
+    const newList = { ...currentList, items: updatedItems };
+    const updatedAll = lists.map(l => l.id === id ? newList : l);
+    await setItem(KEYS.TODO_LISTS, updatedAll);
+    setAllLists(updatedAll);
+  }
+
+  // ── Topic drag ─────────────────────────────────────────────────
+
+  function makeTopicPanResponder(topicId: string) {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => editMode,
+      onMoveShouldSetPanResponder: () => editMode,
+      onPanResponderGrant: () => {
+        setDraggingTopicId(topicId);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      },
+      onPanResponderMove: (_, gs) => {
+        const current = [...localTopicsRef.current].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        const fromIndex = current.findIndex(t => t.id === topicId);
+        if (fromIndex === -1) return;
+
+        const ys: number[] = [];
+        let acc = 0;
+        current.forEach(t => {
+          ys.push(acc);
+          acc += (topicHeights.current[t.id] ?? 60) + TOPIC_GAP;
+        });
+
+        const draggedY = ys[fromIndex] + gs.dy;
+        const draggedCenter = draggedY + (topicHeights.current[topicId] ?? 60) / 2;
+
+        let toIndex = fromIndex;
+        for (let i = 0; i < current.length; i++) {
+          if (i === fromIndex) continue;
+          const center = ys[i] + (topicHeights.current[current[i].id] ?? 60) / 2;
+          if ((i < fromIndex && draggedCenter < center) || (i > fromIndex && draggedCenter > center)) {
+            toIndex = i;
+          }
+        }
+
+        if (toIndex !== fromIndex) {
+          const reordered = [...current];
+          const [moved] = reordered.splice(fromIndex, 1);
+          reordered.splice(toIndex, 0, moved);
+          const updated = reordered.map((t, i) => ({ ...t, order: i }));
+          localTopicsRef.current = updated;
+          setLocalTopics(updated);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      },
+      onPanResponderRelease: async () => {
+        setDraggingTopicId(null);
+        const final = localTopicsRef.current.map((t, i) => ({ ...t, order: i }));
+        await persistTopicsOrder(final);
+      },
+      onPanResponderTerminate: () => setDraggingTopicId(null),
+    });
+  }
+
+  async function persistTopicsOrder(updatedTopics: TodoGroup[]) {
+    const allGroups = await getItem<TodoGroup[]>(KEYS.TODO_GROUPS) ?? [];
+    const updatedAll = allGroups.map(g => updatedTopics.find(t => t.id === g.id) ?? g);
+    await setItem(KEYS.TODO_GROUPS, updatedAll);
+    setTopics(updatedTopics);
+  }
+
+  // ── Item drag ──────────────────────────────────────────────────
+
+  function makeItemPanResponder(itemId: string, groupId: string | null | undefined) {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => editMode,
+      onMoveShouldSetPanResponder: () => editMode,
+      onPanResponderGrant: () => {
+        setDraggingItemId(itemId);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      },
+      onPanResponderMove: (_, gs) => {
+        const currentList = listRef.current;
+        if (!currentList) return;
+
+        const isUngrouped = !groupId;
+        const groupItems = currentList.items
+          .filter(i => (isUngrouped ? !i.groupId : i.groupId === groupId) && !i.done)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        const fromIndex = groupItems.findIndex(i => i.id === itemId);
+        if (fromIndex === -1) return;
+
+        const ys: number[] = [];
+        let acc = 0;
+        groupItems.forEach(item => {
+          ys.push(acc);
+          acc += (itemHeights.current[item.id] ?? 52) + ITEM_GAP;
+        });
+
+        const draggedY = ys[fromIndex] + gs.dy;
+        const draggedCenter = draggedY + (itemHeights.current[itemId] ?? 52) / 2;
+
+        let toIndex = fromIndex;
+        for (let i = 0; i < groupItems.length; i++) {
+          if (i === fromIndex) continue;
+          const center = ys[i] + (itemHeights.current[groupItems[i].id] ?? 52) / 2;
+          if ((i < fromIndex && draggedCenter < center) || (i > fromIndex && draggedCenter > center)) {
+            toIndex = i;
+          }
+        }
+
+        if (toIndex !== fromIndex) {
+          const reordered = [...groupItems];
+          const [moved] = reordered.splice(fromIndex, 1);
+          reordered.splice(toIndex, 0, moved);
+          const orderMap = new Map(reordered.map((item, i) => [item.id, i]));
+          const updatedItems = currentList.items.map(i =>
+            orderMap.has(i.id) ? { ...i, order: orderMap.get(i.id)! } : i
+          );
+          visualUpdateList({ ...currentList, items: updatedItems });
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      },
+      onPanResponderRelease: async () => {
+        setDraggingItemId(null);
+        const currentList = listRef.current;
+        if (currentList) {
+          await persistItemsAfterDrag(currentList.items);
+        }
+      },
+      onPanResponderTerminate: () => setDraggingItemId(null),
+    });
   }
 
   // ── Topic actions ──────────────────────────────────────────────
@@ -103,6 +268,7 @@ export default function TodoListScreen() {
         name: topicName.trim(),
         listId: id as string,
         parentId: null,
+        order: localTopics.length,
         createdAt: new Date().toISOString(),
       };
       updatedAll = [...allGroups, topic];
@@ -177,11 +343,15 @@ export default function TodoListScreen() {
         ),
       });
     } else {
+      const sameGroupPending = list.items.filter(
+        i => (addingToGroupId ? i.groupId === addingToGroupId : !i.groupId) && !i.done
+      );
       const item: TodoItem = {
         id: Date.now().toString(),
         text: itemText.trim(),
         done: false,
         groupId: addingToGroupId,
+        order: sameGroupPending.length,
         createdAt: new Date().toISOString(),
       };
       persist({ ...list, items: [...list.items, item] });
@@ -217,7 +387,9 @@ export default function TodoListScreen() {
 
   if (!list) return null;
 
-  const ungroupedPending = list.items.filter(i => !i.groupId && !i.done);
+  const ungroupedPending = list.items
+    .filter(i => !i.groupId && !i.done)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const ungroupedDone = list.items.filter(i => !i.groupId && i.done);
   const hasDone = list.items.some(i => i.done);
 
@@ -233,13 +405,20 @@ export default function TodoListScreen() {
           <Text style={styles.icon}>{list.icon}</Text>
           <Text style={styles.title} numberOfLines={1}>{list.title}</Text>
         </View>
-        {hasDone ? (
-          <TouchableOpacity onPress={clearDone} hitSlop={8}>
-            <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={() => setEditMode(v => !v)} hitSlop={8}>
+            <Ionicons
+              name={editMode ? 'checkmark-circle' : 'swap-vertical-outline'}
+              size={22}
+              color={editMode ? list.color : Colors.textTertiary}
+            />
           </TouchableOpacity>
-        ) : (
-          <View style={{ width: 24 }} />
-        )}
+          {!editMode && hasDone && (
+            <TouchableOpacity onPress={clearDone} hitSlop={8}>
+              <Ionicons name="trash-outline" size={20} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -250,49 +429,65 @@ export default function TodoListScreen() {
         )}
 
         {/* Topic accordion sections */}
-        {topics.map(topic => {
+        {localTopics.map(topic => {
           const topicItems = list.items.filter(i => i.groupId === topic.id);
-          const topicPending = topicItems.filter(i => !i.done);
+          const topicPending = topicItems
+            .filter(i => !i.done)
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           const topicDone = topicItems.filter(i => i.done);
           const allDone = topicItems.length > 0 && topicItems.every(i => i.done);
           const isExpanded = expandedTopics.has(topic.id);
+          const isDraggingThis = draggingTopicId === topic.id;
+          const topicPanHandlers = makeTopicPanResponder(topic.id).panHandlers;
 
           return (
-            <View key={topic.id} style={styles.topicBlock}>
-              <TouchableOpacity
-                style={[styles.topicHeader, { borderLeftColor: list.color }]}
-                onPress={() => toggleExpanded(topic.id)}
-                onLongPress={() => showTopicActions(topic)}
-                activeOpacity={0.8}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.topicCheckBtn,
-                    { borderColor: list.color },
-                    allDone && { backgroundColor: list.color },
-                  ]}
-                  onPress={() => checkAllInTopic(topic.id)}
-                  hitSlop={6}
-                >
-                  {allDone && <Ionicons name="checkmark" size={13} color="#fff" />}
-                </TouchableOpacity>
-
-                <Text style={[styles.topicName, allDone && styles.topicNameDone]} numberOfLines={1}>
-                  {topic.name}
-                </Text>
-
-                {topicItems.length > 0 && (
-                  <Text style={styles.topicCount}>{topicDone.length}/{topicItems.length}</Text>
+            <View
+              key={topic.id}
+              style={[styles.topicBlock, isDraggingThis && styles.draggingBlock]}
+              onLayout={(e) => { topicHeights.current[topic.id] = e.nativeEvent.layout.height; }}
+            >
+              <View style={[styles.topicHeader, { borderLeftColor: list.color }]}>
+                {!editMode && (
+                  <TouchableOpacity
+                    style={[
+                      styles.topicCheckBtn,
+                      { borderColor: list.color },
+                      allDone && { backgroundColor: list.color },
+                    ]}
+                    onPress={() => checkAllInTopic(topic.id)}
+                    hitSlop={6}
+                  >
+                    {allDone && <Ionicons name="checkmark" size={13} color="#fff" />}
+                  </TouchableOpacity>
                 )}
 
-                <Ionicons
-                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color={Colors.textTertiary}
-                />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.topicHeaderContent}
+                  onPress={() => toggleExpanded(topic.id)}
+                  onLongPress={() => !editMode && showTopicActions(topic)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.topicName, allDone && !editMode && styles.topicNameDone]} numberOfLines={1}>
+                    {topic.name}
+                  </Text>
+                  {!editMode && topicItems.length > 0 && (
+                    <Text style={styles.topicCount}>{topicDone.length}/{topicItems.length}</Text>
+                  )}
+                  <Ionicons
+                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color={Colors.textTertiary}
+                  />
+                </TouchableOpacity>
 
-              {isExpanded && (
+                {editMode && (
+                  <View style={styles.dragHandle} {...topicPanHandlers}>
+                    <Ionicons name="reorder-three-outline" size={24} color={Colors.textTertiary} />
+                  </View>
+                )}
+              </View>
+
+              {isExpanded && !editMode && (
                 <View style={[styles.topicItems, { borderLeftColor: list.color + '40' }]}>
                   {topicPending.map(item => (
                     <TouchableOpacity
@@ -338,31 +533,68 @@ export default function TodoListScreen() {
                   </TouchableOpacity>
                 </View>
               )}
+
+              {isExpanded && editMode && topicPending.length > 0 && (
+                <View style={[styles.topicItems, { borderLeftColor: list.color + '40' }]}>
+                  {topicPending.map(item => {
+                    const itemPanHandlers = makeItemPanResponder(item.id, topic.id).panHandlers;
+                    return (
+                      <View
+                        key={item.id}
+                        style={[styles.item, draggingItemId === item.id && styles.draggingBlock]}
+                        onLayout={(e) => { itemHeights.current[item.id] = e.nativeEvent.layout.height; }}
+                      >
+                        <Text style={styles.itemText} numberOfLines={1}>{item.text}</Text>
+                        <View style={styles.dragHandle} {...itemPanHandlers}>
+                          <Ionicons name="reorder-three-outline" size={20} color={Colors.textTertiary} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           );
         })}
 
         {/* Ungrouped items */}
-        {ungroupedPending.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.item}
-            onPress={() => toggleItem(item.id)}
-            onLongPress={() => showItemActions(item)}
-            activeOpacity={0.7}
-          >
+        {ungroupedPending.map((item) => {
+          if (editMode) {
+            const itemPanHandlers = makeItemPanResponder(item.id, null).panHandlers;
+            return (
+              <View
+                key={item.id}
+                style={[styles.item, draggingItemId === item.id && styles.draggingBlock]}
+                onLayout={(e) => { itemHeights.current[item.id] = e.nativeEvent.layout.height; }}
+              >
+                <Text style={styles.itemText} numberOfLines={1}>{item.text}</Text>
+                <View style={styles.dragHandle} {...itemPanHandlers}>
+                  <Ionicons name="reorder-three-outline" size={20} color={Colors.textTertiary} />
+                </View>
+              </View>
+            );
+          }
+          return (
             <TouchableOpacity
-              style={[styles.checkbox, { borderColor: list.color }]}
+              key={item.id}
+              style={styles.item}
               onPress={() => toggleItem(item.id)}
-            />
-            <Text style={styles.itemText}>{item.text}</Text>
-            <TouchableOpacity onPress={() => showItemActions(item)} hitSlop={8}>
-              <Ionicons name="ellipsis-horizontal" size={18} color={Colors.textTertiary} />
+              onLongPress={() => showItemActions(item)}
+              activeOpacity={0.7}
+            >
+              <TouchableOpacity
+                style={[styles.checkbox, { borderColor: list.color }]}
+                onPress={() => toggleItem(item.id)}
+              />
+              <Text style={styles.itemText}>{item.text}</Text>
+              <TouchableOpacity onPress={() => showItemActions(item)} hitSlop={8}>
+                <Ionicons name="ellipsis-horizontal" size={18} color={Colors.textTertiary} />
+              </TouchableOpacity>
             </TouchableOpacity>
-          </TouchableOpacity>
-        ))}
+          );
+        })}
 
-        {ungroupedDone.length > 0 && (
+        {!editMode && ungroupedDone.length > 0 && (
           <>
             <Text style={styles.sectionLabel}>Concluídos ({ungroupedDone.length})</Text>
             {ungroupedDone.map((item) => (
@@ -386,15 +618,15 @@ export default function TodoListScreen() {
         )}
       </ScrollView>
 
-      {/* Speed dial FAB */}
-      {showFabMenu && (
+      {/* Speed dial FAB — hidden in edit mode */}
+      {!editMode && showFabMenu && (
         <TouchableOpacity
           style={styles.fabBackdrop}
           activeOpacity={1}
           onPress={() => setShowFabMenu(false)}
         />
       )}
-      {showFabMenu && (
+      {!editMode && showFabMenu && (
         <View style={[styles.fabMenu, { bottom: insets.bottom + 88 }]}>
           <TouchableOpacity style={styles.fabMenuRow} onPress={openCreateTopicModal}>
             <Text style={styles.fabMenuLabel}>Novo tópico</Text>
@@ -410,15 +642,17 @@ export default function TodoListScreen() {
           </TouchableOpacity>
         </View>
       )}
-      <TouchableOpacity
-        style={[
-          styles.fab,
-          { backgroundColor: showFabMenu ? Colors.danger : list.color, bottom: insets.bottom + 24 + 72 },
-        ]}
-        onPress={() => setShowFabMenu(v => !v)}
-      >
-        <Ionicons name={showFabMenu ? 'close' : 'add'} size={28} color="#fff" />
-      </TouchableOpacity>
+      {!editMode && (
+        <TouchableOpacity
+          style={[
+            styles.fab,
+            { backgroundColor: showFabMenu ? Colors.danger : list.color, bottom: insets.bottom + 24 + 72 },
+          ]}
+          onPress={() => setShowFabMenu(v => !v)}
+        >
+          <Ionicons name={showFabMenu ? 'close' : 'add'} size={28} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       {/* Item modal */}
       <Modal visible={showItemModal} animationType="slide" presentationStyle="pageSheet">
@@ -493,6 +727,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
   },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   icon: { fontSize: 22 },
   title: { flex: 1, fontSize: 20, fontWeight: '800', color: Colors.text },
 
@@ -514,6 +749,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+  },
+  topicHeaderContent: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
   },
   topicCheckBtn: {
     width: 22, height: 22, borderRadius: 6,
@@ -550,6 +788,15 @@ const styles = StyleSheet.create({
   itemTextDone: {
     flex: 1, fontSize: 15, color: Colors.textSecondary,
     textDecorationLine: 'line-through',
+  },
+
+  // Drag
+  draggingBlock: {
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 12, elevation: 12,
+  },
+  dragHandle: {
+    padding: 4, alignItems: 'center', justifyContent: 'center',
   },
 
   // Speed dial FAB
