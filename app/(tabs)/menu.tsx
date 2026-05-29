@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -11,10 +11,12 @@ import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, CAT
 import { isRoutineForToday, isRoutineCompletedToday } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 import { stripHtml } from '../../lib/textFormatting';
+import { useAuth } from '../../context/AuthContext';
 
 export default function MenuScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, syncStatus, googleAuthReady, signInWithGoogle, signOut } = useAuth();
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
   const [todoLists, setTodoLists] = useState<TodoList[]>([]);
@@ -106,6 +108,43 @@ export default function MenuScreen() {
             </Text>
           </View>
         </View>
+
+        {!user ? (
+          <TouchableOpacity
+            style={styles.cloudCard}
+            onPress={signInWithGoogle}
+            disabled={!googleAuthReady}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="cloud-upload-outline" size={22} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cloudTitle}>Backup na nuvem</Text>
+              <Text style={styles.cloudSub}>Faça login com Google para sincronizar seus dados</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.cloudCard}>
+            {user.photoURL ? (
+              <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarFallback]}>
+                <Ionicons name="person" size={20} color={Colors.primary} />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cloudTitle} numberOfLines={1}>{user.displayName ?? user.email}</Text>
+              <Text style={styles.cloudSub}>
+                {syncStatus === 'syncing' ? '⟳ Sincronizando...' : '✓ Sincronizado com Google'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={signOut} hitSlop={8}>
+              <Ionicons name="log-out-outline" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.quickGrid}>
           <TouchableOpacity
@@ -312,6 +351,28 @@ export default function MenuScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  cloudCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  cloudTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  cloudSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  avatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLighter,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: { padding: 20 },
   header: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text },

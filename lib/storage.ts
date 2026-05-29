@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+let _syncFn: ((key: string, value: unknown) => Promise<void>) | null = null;
+
+export function setFirestoreSyncFn(
+  fn: ((key: string, value: unknown) => Promise<void>) | null
+) {
+  _syncFn = fn;
+}
+
 export async function getItem<T>(key: string): Promise<T | null> {
   const raw = await AsyncStorage.getItem(key);
   return raw ? JSON.parse(raw) : null;
@@ -7,6 +15,9 @@ export async function getItem<T>(key: string): Promise<T | null> {
 
 export async function setItem<T>(key: string, value: T): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(value));
+  if (_syncFn) {
+    _syncFn(key, value).catch(() => {}); // fire-and-forget, silent fail
+  }
 }
 
 export async function removeItem(key: string): Promise<void> {
