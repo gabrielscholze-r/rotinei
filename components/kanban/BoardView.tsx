@@ -1,10 +1,12 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, Alert, Modal,
+  TextInput, Alert, Modal, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../../constants/colors';
@@ -33,14 +35,12 @@ export function BoardView({ board, columns: initialColumns }: Props) {
   const [cards, setCards] = useState<KanbanCard[]>([]);
   const [tags, setTags] = useState<KanbanTag[]>([]);
 
-  // Tags
   const [showTagManager, setShowTagManager] = useState(false);
   const [showTagEditor, setShowTagEditor] = useState(false);
   const [editingTag, setEditingTag] = useState<KanbanTag | null>(null);
   const [tagName, setTagName] = useState('');
   const [tagColor, setTagColor] = useState(TAG_COLORS[0]);
 
-  // Card modal (new + edit)
   const [showCardModal, setShowCardModal] = useState(false);
   const [editingCard, setEditingCard] = useState<KanbanCard | null>(null);
   const [cardText, setCardText] = useState('');
@@ -48,7 +48,22 @@ export function BoardView({ board, columns: initialColumns }: Props) {
   const [cardTagIds, setCardTagIds] = useState<string[]>([]);
   const [targetColumnId, setTargetColumnId] = useState<string | null>(null);
 
-  // Column modals
+  const colRefs = useRef<Record<string, View | null>>({});
+  const dropTargetColIdRef = useRef<string | null>(null);
+  const dropInsertIndexRef = useRef(-1);
+  const cardLayouts = useRef<Record<string, { y: number; height: number }>>({});
+  const colScrollYRef = useRef<Record<string, number>>({});
+  const colScreenYRef = useRef<Record<string, number>>({});
+  const boardScrollRef = useRef<ScrollView>(null);
+  const boardScrollXRef = useRef(0);
+  const autoScrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoScrollDirRef = useRef<'left' | 'right' | null>(null);
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const [draggingCard, setDraggingCard] = useState<KanbanCard | null>(null);
+  const [dropTargetColId, setDropTargetColId] = useState<string | null>(null);
+  const [dropInsertIndex, setDropInsertIndex] = useState(-1);
+
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [columnName, setColumnName] = useState('');
   const [showRenameModal, setShowRenameModal] = useState(false);
@@ -65,8 +80,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
       setTags((allTags ?? []).filter(t => t.boardId === board.id));
     })();
   }, []);
-
-  // ── Persistence ────────────────────────────────────────────────
 
   async function persistCards(updated: KanbanCard[]) {
     const all = await getItem<KanbanCard[]>(KEYS.KANBAN_CARDS) ?? [];
@@ -88,8 +101,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
     await setItem(KEYS.KANBAN_TAGS, [...others, ...updatedTags]);
     setTags(updatedTags);
   }
-
-  // ── Tags ───────────────────────────────────────────────────────
 
   function openCreateTag() {
     setEditingTag(null);
@@ -149,8 +160,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
       prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]
     );
   }
-
-  // ── Cards ──────────────────────────────────────────────────────
 
   function closeCardModal() {
     setShowCardModal(false);
@@ -216,8 +225,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
     closeCardModal();
   }
 
-  // ── Columns ────────────────────────────────────────────────────
-
   async function saveColumn() {
     if (!columnName.trim()) return;
     const newCol: KanbanColumn = {
@@ -267,9 +274,138 @@ export function BoardView({ board, columns: initialColumns }: Props) {
     setRenameText('');
   }
 
-  // ── Render ─────────────────────────────────────────────────────
+  const ghostStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    left: dragX.value - (COLUMN_WIDTH - 20) / 2,
+    top: dragY.value - 50,
+    width: COLUMN_WIDTH - 20,
+    zIndex: 999,
+    elevation: 10,
+    opacity: 0.93,
+    transform: [{ scale: 1.05 }],
+  }));
+
+  const SCREEN_WIDTH = Dimensions.get('window').width;
+  const SCROLL_ZONE = 65;
+  const SCROLL_SPEED = 10;
+
+  function startAutoScroll(dir: 'left' | 'right') {
+    if (autoScrollDirRef.current === dir) return;
+    if (autoScrollIntervalRef.current) clearInterval(autoScrollIntervalRef.current);
+    autoScrollDirRef.current = dir;
+    autoScrollIntervalRef.current = setInterval(() => {
+      const delta = dir === 'right' ? SCROLL_SPEED : -SCROLL_SPEED;
+      boardScrollXRef.current = Math.max(0, boardScrollXRef.current + delta);
+      boardScrollRef.current?.scrollTo({ x: boardScrollXRef.current, animated: false });
+    }, 16);
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
+      autoScrollDirRef.current = null;
+    }
+  }
+
+  function checkAutoScroll(absX: number) {
+    if (absX < SCROLL_ZONE) startAutoScroll('left');
+    else if (absX > SCREEN_WIDTH - SCROLL_ZONE) startAutoScroll('right');
+    else stopAutoScroll();
+  }
+
+  function computeInsertIndex(absY: number, colId: string, colScreenY: number, draggingId: string): number {
+    const scrollOffset = colScrollYRef.current[colId] ?? 0;
+    const HEADER_H = 52;
+    const SCROLL_PAD = 10;
+    const relY = absY - colScreenY - HEADER_H - SCROLL_PAD + scrollOffset;
+    const colCards = cards
+      .filter(c => c.columnId === colId && c.id !== draggingId)
+      .sort((a, b) => a.order - b.order);
+    let accY = 0;
+    for (let i = 0; i < colCards.length; i++) {
+      const h = cardLayouts.current[colCards[i].id]?.height ?? 56;
+      if (relY < accY + h / 2) return i;
+      accY += h + 8;
+    }
+    return colCards.length;
+  }
+
+  function findDropTargetAndIndex(absX: number, absY: number, draggingId: string) {
+    const entries = Object.entries(colRefs.current);
+    let pending = entries.length;
+    if (pending === 0) return;
+    let found: string | null = null;
+    let foundY = 0;
+    for (const [colId, ref] of entries) {
+      ref?.measureInWindow((rx, ry, rw) => {
+        if (absX >= rx && absX <= rx + rw) { found = colId; foundY = ry; }
+        pending--;
+        if (pending === 0) {
+          dropTargetColIdRef.current = found;
+          setDropTargetColId(found);
+          if (found) {
+            colScreenYRef.current[found] = foundY;
+            const idx = computeInsertIndex(absY, found, foundY, draggingId);
+            dropInsertIndexRef.current = idx;
+            setDropInsertIndex(idx);
+          } else {
+            dropInsertIndexRef.current = -1;
+            setDropInsertIndex(-1);
+          }
+        }
+      });
+    }
+  }
+
+  async function handleDrop(card: KanbanCard) {
+    const target = dropTargetColIdRef.current;
+    const insertAt = dropInsertIndexRef.current;
+    setDraggingCard(null);
+    setDropTargetColId(null);
+    setDropInsertIndex(-1);
+    dropTargetColIdRef.current = null;
+    dropInsertIndexRef.current = -1;
+    if (!target) return;
+    const targetColCards = cards
+      .filter(c => c.columnId === target && c.id !== card.id)
+      .sort((a, b) => a.order - b.order);
+    const movedCard = { ...card, columnId: target };
+    targetColCards.splice(Math.max(0, insertAt >= 0 ? insertAt : targetColCards.length), 0, movedCard);
+    const reordered = targetColCards.map((c, i) => ({ ...c, order: i }));
+    const others = cards.filter(c => c.columnId !== target && c.id !== card.id);
+    await persistCards([...others, ...reordered]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
+
+  function makeCardGesture(card: KanbanCard) {
+    return Gesture.Pan()
+      .activateAfterLongPress(400)
+      .onStart((e) => {
+        dragX.value = e.absoluteX;
+        dragY.value = e.absoluteY;
+        runOnJS(setDraggingCard)(card);
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
+      })
+      .onUpdate((e) => {
+        dragX.value = e.absoluteX;
+        dragY.value = e.absoluteY;
+        runOnJS(findDropTargetAndIndex)(e.absoluteX, e.absoluteY, card.id);
+        runOnJS(checkAutoScroll)(e.absoluteX);
+      })
+      .onEnd(() => {
+        runOnJS(handleDrop)(card);
+      })
+      .onFinalize(() => {
+        runOnJS(stopAutoScroll)();
+        runOnJS(setDraggingCard)(null);
+        runOnJS(setDropTargetColId)(null);
+        runOnJS(setDropInsertIndex)(-1);
+      });
+  }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={styles.container}>
       <View style={[styles.header, { borderBottomColor: board.color }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
@@ -285,9 +421,12 @@ export function BoardView({ board, columns: initialColumns }: Props) {
       </View>
 
       <ScrollView
+        ref={boardScrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.board}
+        scrollEventThrottle={16}
+        onScroll={(e) => { boardScrollXRef.current = e.nativeEvent.contentOffset.x; }}
       >
         {columns.map(col => {
           const colCards = cards
@@ -295,7 +434,14 @@ export function BoardView({ board, columns: initialColumns }: Props) {
             .sort((a, b) => a.order - b.order);
 
           return (
-            <View key={col.id} style={styles.column}>
+            <View
+              key={col.id}
+              ref={r => { colRefs.current[col.id] = r; }}
+              style={[
+                styles.column,
+                dropTargetColId === col.id && draggingCard && { backgroundColor: board.color + '25' },
+              ]}
+            >
               <TouchableOpacity
                 style={[styles.columnHeader, { borderTopColor: board.color }]}
                 onLongPress={() => showColumnActions(col)}
@@ -312,32 +458,56 @@ export function BoardView({ board, columns: initialColumns }: Props) {
                 showsVerticalScrollIndicator={false}
                 style={styles.columnScroll}
                 contentContainerStyle={{ paddingBottom: 8 }}
+                scrollEventThrottle={16}
+                onScroll={(e) => { colScrollYRef.current[col.id] = e.nativeEvent.contentOffset.y; }}
               >
-                {colCards.map(card => {
-                  const cardTags = tags.filter(t => card.tagIds.includes(t.id));
-                  return (
-                    <TouchableOpacity
-                      key={card.id}
-                      style={styles.card}
-                      onPress={() => openEditCard(card)}
-                      activeOpacity={0.8}
-                    >
-                      {cardTags.length > 0 && (
-                        <View style={styles.cardTags}>
-                          {cardTags.map(tag => (
-                            <View key={tag.id} style={[styles.cardTag, { backgroundColor: tag.color }]}>
-                              <Text style={styles.cardTagText}>{tag.name}</Text>
+                {(() => {
+                  const elements: React.ReactElement[] = [];
+                  for (let idx = 0; idx < colCards.length; idx++) {
+                    const card = colCards[idx];
+                    const cardTags = tags.filter(t => card.tagIds.includes(t.id));
+                    if (draggingCard && dropTargetColId === col.id && dropInsertIndex === idx) {
+                      elements.push(
+                        <View key={`drop-${col.id}-${idx}`} style={[styles.dropLine, { backgroundColor: board.color }]} />
+                      );
+                    }
+                    elements.push(
+                      <GestureDetector key={card.id} gesture={makeCardGesture(card)}>
+                        <TouchableOpacity
+                          style={[styles.card, draggingCard?.id === card.id && styles.cardDragging]}
+                          onPress={() => openEditCard(card)}
+                          activeOpacity={0.8}
+                          onLayout={(e) => {
+                            cardLayouts.current[card.id] = {
+                              y: e.nativeEvent.layout.y,
+                              height: e.nativeEvent.layout.height,
+                            };
+                          }}
+                        >
+                          {cardTags.length > 0 && (
+                            <View style={styles.cardTags}>
+                              {cardTags.map(tag => (
+                                <View key={tag.id} style={[styles.cardTag, { backgroundColor: tag.color }]}>
+                                  <Text style={styles.cardTagText}>{tag.name}</Text>
+                                </View>
+                              ))}
                             </View>
-                          ))}
-                        </View>
-                      )}
-                      <Text style={styles.cardText}>{card.text}</Text>
-                      {!!card.description && (
-                        <Text style={styles.cardDescription} numberOfLines={2}>{card.description}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+                          )}
+                          <Text style={styles.cardText}>{card.text}</Text>
+                          {!!card.description && (
+                            <Text style={styles.cardDescription} numberOfLines={2}>{card.description}</Text>
+                          )}
+                        </TouchableOpacity>
+                      </GestureDetector>
+                    );
+                  }
+                  if (draggingCard && dropTargetColId === col.id && dropInsertIndex === colCards.length) {
+                    elements.push(
+                      <View key={`drop-${col.id}-end`} style={[styles.dropLine, { backgroundColor: board.color }]} />
+                    );
+                  }
+                  return elements;
+                })()}
 
                 <TouchableOpacity
                   style={[styles.addCardBtn, { borderColor: board.color + '50' }]}
@@ -360,7 +530,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* ── Card modal ─────────────────────────────────────────── */}
       <Modal visible={showCardModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -461,7 +630,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* ── Tag manager ────────────────────────────────────────── */}
       <Modal visible={showTagManager} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -501,7 +669,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* ── Tag editor ─────────────────────────────────────────── */}
       <Modal visible={showTagEditor} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -549,7 +716,6 @@ export function BoardView({ board, columns: initialColumns }: Props) {
         </SafeAreaView>
       </Modal>
 
-      {/* ── Column modals ──────────────────────────────────────── */}
       <Modal visible={showColumnModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
@@ -604,6 +770,27 @@ export function BoardView({ board, columns: initialColumns }: Props) {
 
       <CustomTabBar />
     </SafeAreaView>
+
+    {draggingCard && (
+      <Animated.View style={ghostStyle} pointerEvents="none">
+        <View style={[styles.card, styles.cardGhost]}>
+          {tags.filter(t => draggingCard.tagIds.includes(t.id)).length > 0 && (
+            <View style={styles.cardTags}>
+              {tags.filter(t => draggingCard.tagIds.includes(t.id)).map(tag => (
+                <View key={tag.id} style={[styles.cardTag, { backgroundColor: tag.color }]}>
+                  <Text style={styles.cardTagText}>{tag.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <Text style={styles.cardText}>{draggingCard.text}</Text>
+          {!!draggingCard.description && (
+            <Text style={styles.cardDescription} numberOfLines={2}>{draggingCard.description}</Text>
+          )}
+        </View>
+      </Animated.View>
+    )}
+    </GestureHandlerRootView>
   );
 }
 
@@ -653,6 +840,12 @@ const styles = StyleSheet.create({
   cardTagText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   cardText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
   cardDescription: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17, marginTop: 4 },
+  cardDragging: { opacity: 0.2 },
+  dropLine: { height: 3, borderRadius: 2, marginBottom: 8, marginHorizontal: 2 },
+  cardGhost: {
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3, shadowRadius: 14, elevation: 14,
+  },
   colChip: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
