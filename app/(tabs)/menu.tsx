@@ -7,7 +7,7 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getItem, KEYS } from '../../lib/storage';
-import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
+import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, KanbanBoard, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
 import { isRoutineForToday, isRoutineCompletedToday } from '../../lib/routines';
 import { currentPeriodKey, isInPeriod } from '../../lib/billing';
 import { stripHtml } from '../../lib/textFormatting';
@@ -23,11 +23,12 @@ export default function MenuScreen() {
   const [cycleDay, setCycleDay] = useState<number>(1);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
+  const [boards, setBoards] = useState<KanbanBoard[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [rts, logs, todos, nts, exps, day, gls, cats] = await Promise.all([
+        const [rts, logs, todos, nts, exps, day, gls, cats, bds] = await Promise.all([
           getItem<Routine[]>(KEYS.ROUTINES),
           getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
           getItem<TodoList[]>(KEYS.TODO_LISTS),
@@ -36,6 +37,7 @@ export default function MenuScreen() {
           getItem<number>(KEYS.BILLING_CYCLE_DAY),
           getItem<Goal[]>(KEYS.GOALS),
           getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
+          getItem<KanbanBoard[]>(KEYS.KANBAN_BOARDS),
         ]);
         setRoutines(rts ?? []);
         setRoutineLogs(logs ?? []);
@@ -45,6 +47,7 @@ export default function MenuScreen() {
         setCycleDay(day ?? 1);
         setGoals(gls ?? []);
         setCustomCategories(cats ?? []);
+        setBoards(bds ?? []);
       }
       load();
     }, [])
@@ -159,6 +162,18 @@ export default function MenuScreen() {
             <Text style={[styles.quickCount, { color: '#DC2626' }]}>
               {`R$ ${monthExpenses.toFixed(2)}`}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickCard}
+            onPress={() => router.push({ pathname: '/(tabs)/kanban', params: { from: 'menu' } } as any)}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="grid" size={22} color="#F97316" />
+            </View>
+            <Text style={styles.quickLabel}>Quadros</Text>
+            <Text style={[styles.quickCount, { color: '#F97316' }]}>{boards.length}</Text>
           </TouchableOpacity>
         </View>
 
@@ -298,11 +313,38 @@ export default function MenuScreen() {
           </>
         )}
 
-        {todoLists.length === 0 && notes.length === 0 && goals.length === 0 && expenses.length === 0 && (
+        {boards.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Quadros</Text>
+              <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/kanban', params: { from: 'menu' } } as any)}>
+                <Text style={styles.sectionLink}>ver todos</Text>
+              </TouchableOpacity>
+            </View>
+            {boards.map(board => (
+              <TouchableOpacity
+                key={board.id}
+                style={styles.rowCard}
+                onPress={() => router.push(`/kanban/${board.id}` as any)}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: board.color + '20' }]}>
+                  <Text style={{ fontSize: 20 }}>{board.icon}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>{board.title}</Text>
+                  <Text style={styles.rowSub}>Quadro Kanban</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {todoLists.length === 0 && notes.length === 0 && goals.length === 0 && expenses.length === 0 && boards.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="apps-outline" size={48} color={Colors.textTertiary} />
             <Text style={styles.emptyTitle}>Tudo vazio por aqui</Text>
-            <Text style={styles.emptyText}>Comece criando rotinas, listas ou notas.</Text>
+            <Text style={styles.emptyText}>Comece criando rotinas, listas, notas ou quadros.</Text>
           </View>
         )}
       </ScrollView>
