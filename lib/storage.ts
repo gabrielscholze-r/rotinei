@@ -31,4 +31,8 @@ export const KEYS = {
   EXPENSE_SECTIONS: 'expense_sections',
   EXPENSE_CHARTS: 'expense_charts',
   RECURRING_EXPENSES: 'recurring_expenses',
+  KANBAN_TAGS: 'kanban_tags',
+  KANBAN_BOARDS: 'kanban_boards',
+  KANBAN_COLUMNS: 'kanban_columns',
+  KANBAN_CARDS: 'kanban_cards',
 };

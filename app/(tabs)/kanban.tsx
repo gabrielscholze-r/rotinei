@@ -8,17 +8,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
 import { Colors } from '../../constants/colors';
 import { getItem, setItem, KEYS } from '../../lib/storage';
-import { TodoList, TodoGroup } from '../../lib/types';
+import { KanbanBoard, KanbanColumn, KanbanCard, KanbanTag } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const LIST_COLORS = Colors.listColors;
-const LIST_ICONS = ['🛒', '🏠', '💼', '🏃', '📚', '🎯', '🍔', '💊', '🎁', '✈️', '🐾', '🌿'];
+const BOARD_COLORS = Colors.listColors;
+const BOARD_ICONS = ['📋', '🎯', '💼', '🚀', '🏗️', '🎨', '📦', '🔧', '⚡', '🌟', '🏆', '📊'];
 
-export default function TodosScreen() {
+export default function KanbanScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const [lists, setLists] = useState<TodoList[]>([]);
+  const [boards, setBoards] = useState<KanbanBoard[]>([]);
+  const [allColumns, setAllColumns] = useState<KanbanColumn[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
   const [selectedColor, setSelectedColor] = useState(0);
@@ -31,46 +32,69 @@ export default function TodosScreen() {
   );
 
   async function load() {
-    const data = await getItem<TodoList[]>(KEYS.TODO_LISTS);
-    setLists(data ?? []);
+    const [bds, cols] = await Promise.all([
+      getItem<KanbanBoard[]>(KEYS.KANBAN_BOARDS),
+      getItem<KanbanColumn[]>(KEYS.KANBAN_COLUMNS),
+    ]);
+    setBoards(bds ?? []);
+    setAllColumns(cols ?? []);
   }
 
-  async function saveLists(updated: TodoList[]) {
-    await setItem(KEYS.TODO_LISTS, updated);
-    setLists(updated);
-  }
-
-  function createList() {
+  async function createBoard() {
     if (!name.trim()) {
-      Alert.alert('Erro', 'Informe um nome para a lista.');
+      Alert.alert('Erro', 'Informe um nome para o quadro.');
       return;
     }
-    const newList: TodoList = {
-      id: Date.now().toString(),
+    const now = Date.now();
+    const iso = new Date().toISOString();
+    const board: KanbanBoard = {
+      id: now.toString(),
       title: name.trim(),
-      icon: LIST_ICONS[selectedIcon],
-      color: LIST_COLORS[selectedColor],
-      items: [],
-      createdAt: new Date().toISOString(),
+      icon: BOARD_ICONS[selectedIcon],
+      color: BOARD_COLORS[selectedColor],
+      createdAt: iso,
     };
-    saveLists([newList, ...lists]);
+    const defaultCols: KanbanColumn[] = [
+      { id: `${now}c1`, boardId: board.id, name: 'Backlog', order: 0, createdAt: iso },
+      { id: `${now}c2`, boardId: board.id, name: 'Em Progresso', order: 1, createdAt: iso },
+      { id: `${now}c3`, boardId: board.id, name: 'Concluído', order: 2, createdAt: iso },
+    ];
+    const [existingBoards, existingCols] = await Promise.all([
+      getItem<KanbanBoard[]>(KEYS.KANBAN_BOARDS),
+      getItem<KanbanColumn[]>(KEYS.KANBAN_COLUMNS),
+    ]);
+    await Promise.all([
+      setItem(KEYS.KANBAN_BOARDS, [board, ...(existingBoards ?? [])]),
+      setItem(KEYS.KANBAN_COLUMNS, [...(existingCols ?? []), ...defaultCols]),
+    ]);
+    setBoards(prev => [board, ...prev]);
+    setAllColumns(prev => [...prev, ...defaultCols]);
     setName('');
     setSelectedColor(0);
     setSelectedIcon(0);
     setShowAdd(false);
   }
 
-  async function deleteList(id: string) {
-    Alert.alert('Excluir lista', 'Tem certeza?', [
+  function deleteBoard(boardId: string) {
+    Alert.alert('Excluir quadro', 'Remove o quadro, colunas, cards e tags.', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: async () => {
-          saveLists(lists.filter((l) => l.id !== id));
-          const allGroups = await getItem<TodoGroup[]>(KEYS.TODO_GROUPS) ?? [];
-          await setItem(KEYS.TODO_GROUPS, allGroups.filter(g => g.listId !== id));
-        },
+        text: 'Excluir', style: 'destructive', onPress: async () => {
+          const [bds, cols, cards, tags] = await Promise.all([
+            getItem<KanbanBoard[]>(KEYS.KANBAN_BOARDS),
+            getItem<KanbanColumn[]>(KEYS.KANBAN_COLUMNS),
+            getItem<KanbanCard[]>(KEYS.KANBAN_CARDS),
+            getItem<KanbanTag[]>(KEYS.KANBAN_TAGS),
+          ]);
+          await Promise.all([
+            setItem(KEYS.KANBAN_BOARDS, (bds ?? []).filter(b => b.id !== boardId)),
+            setItem(KEYS.KANBAN_COLUMNS, (cols ?? []).filter(c => c.boardId !== boardId)),
+            setItem(KEYS.KANBAN_CARDS, (cards ?? []).filter(c => c.boardId !== boardId)),
+            setItem(KEYS.KANBAN_TAGS, (tags ?? []).filter(t => t.boardId !== boardId)),
+          ]);
+          setBoards(prev => prev.filter(b => b.id !== boardId));
+          setAllColumns(prev => prev.filter(c => c.boardId !== boardId));
+        }
       },
     ]);
   }
@@ -81,51 +105,40 @@ export default function TodosScreen() {
         <TouchableOpacity onPress={() => router.navigate(from === 'menu' ? '/(tabs)/menu' : '/(tabs)' as any)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Listas</Text>
+        <Text style={styles.title}>Quadros</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {lists.length === 0 && (
+        {boards.length === 0 && (
           <View style={styles.empty}>
-            <Ionicons name="list-outline" size={56} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Nenhuma lista</Text>
-            <Text style={styles.emptySub}>Toque em + para criar sua primeira lista</Text>
+            <Ionicons name="grid-outline" size={56} color={Colors.textTertiary} />
+            <Text style={styles.emptyTitle}>Nenhum quadro</Text>
+            <Text style={styles.emptySub}>Toque em + para criar seu primeiro quadro Kanban</Text>
           </View>
         )}
 
         <View style={styles.grid}>
-          {lists.map((list) => {
-            const done = list.items.filter((i) => i.done).length;
-            const total = list.items.length;
-            const pct = total > 0 ? done / total : 0;
+          {boards.map(board => {
+            const colCount = allColumns.filter(c => c.boardId === board.id).length;
             return (
               <TouchableOpacity
-                key={list.id}
-                style={[styles.listCard, { borderTopColor: list.color, borderTopWidth: 4 }]}
-                onPress={() => router.push(`/todos/${list.id}` as any)}
+                key={board.id}
+                style={[styles.boardCard, { borderTopColor: board.color, borderTopWidth: 4 }]}
+                onPress={() => router.push(`/kanban/${board.id}` as any)}
+                onLongPress={() => deleteBoard(board.id)}
                 activeOpacity={0.8}
               >
-                <View style={styles.listCardHeader}>
-                  <Text style={styles.listIcon}>{list.icon}</Text>
-                  <TouchableOpacity onPress={() => deleteList(list.id)} hitSlop={8}>
+                <View style={styles.boardCardHeader}>
+                  <Text style={styles.boardIcon}>{board.icon}</Text>
+                  <TouchableOpacity onPress={() => deleteBoard(board.id)} hitSlop={8}>
                     <Ionicons name="ellipsis-vertical" size={16} color={Colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.listTitle}>{list.title}</Text>
-                <Text style={styles.listSub}>
-                  {total === 0 ? 'Vazia' : `${done}/${total} itens`}
+                <Text style={styles.boardTitle}>{board.title}</Text>
+                <Text style={styles.boardSub}>
+                  {colCount === 0 ? 'Sem colunas' : `${colCount} coluna${colCount !== 1 ? 's' : ''}`}
                 </Text>
-                {total > 0 && (
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${pct * 100}%`, backgroundColor: list.color },
-                      ]}
-                    />
-                  </View>
-                )}
               </TouchableOpacity>
             );
           })}
@@ -137,16 +150,16 @@ export default function TodosScreen() {
       <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Nova lista</Text>
+            <Text style={styles.modalTitle}>Novo quadro</Text>
             <TouchableOpacity onPress={() => { setShowAdd(false); setName(''); setSelectedColor(0); setSelectedIcon(0); }}>
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-            <Text style={styles.label}>Nome da lista *</Text>
+            <Text style={styles.label}>Nome do quadro *</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex: Compras do mês"
+              placeholder="Ex: Projeto App, Sprint 1..."
               placeholderTextColor={Colors.textTertiary}
               value={name}
               onChangeText={setName}
@@ -156,7 +169,7 @@ export default function TodosScreen() {
             <Text style={styles.label}>Ícone</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.iconRow}>
-                {LIST_ICONS.map((icon, i) => (
+                {BOARD_ICONS.map((icon, i) => (
                   <TouchableOpacity
                     key={i}
                     style={[styles.iconBtn, selectedIcon === i && styles.iconBtnSelected]}
@@ -170,7 +183,7 @@ export default function TodosScreen() {
 
             <Text style={styles.label}>Cor</Text>
             <View style={styles.colorRow}>
-              {LIST_COLORS.map((c, i) => (
+              {BOARD_COLORS.map((c, i) => (
                 <TouchableOpacity
                   key={c}
                   style={[styles.colorDot, { backgroundColor: c }, selectedColor === i && styles.colorDotSelected]}
@@ -181,8 +194,13 @@ export default function TodosScreen() {
               ))}
             </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={createList}>
-              <Text style={styles.saveBtnText}>Criar lista</Text>
+            <View style={styles.hint}>
+              <Ionicons name="information-circle-outline" size={16} color={Colors.textTertiary} />
+              <Text style={styles.hintText}>3 colunas padrão criadas automaticamente (Backlog, Em Progresso, Concluído)</Text>
+            </View>
+
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: BOARD_COLORS[selectedColor] }]} onPress={createBoard}>
+              <Text style={styles.saveBtnText}>Criar quadro</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -205,9 +223,9 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, paddingTop: 4, paddingBottom: 40 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.textSecondary },
-  emptySub: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center' },
+  emptySub: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center', paddingHorizontal: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  listCard: {
+  boardCard: {
     width: '47%',
     backgroundColor: Colors.card,
     borderRadius: 16,
@@ -220,18 +238,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  listCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  listIcon: { fontSize: 26 },
-  listTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  listSub: { fontSize: 12, color: Colors.textSecondary },
-  progressTrack: {
-    height: 4,
-    backgroundColor: Colors.borderLight,
-    borderRadius: 2,
-    overflow: 'hidden',
-    marginTop: 10,
-  },
-  progressFill: { height: '100%', borderRadius: 2 },
+  boardCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  boardIcon: { fontSize: 26 },
+  boardTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  boardSub: { fontSize: 12, color: Colors.textSecondary },
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHeader: {
     flexDirection: 'row',
@@ -255,31 +265,27 @@ const styles = StyleSheet.create({
   },
   iconRow: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 44, height: 44, borderRadius: 12,
     backgroundColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   iconBtnSelected: { backgroundColor: Colors.primaryLight },
   iconText: { fontSize: 22 },
   colorRow: { flexDirection: 'row', gap: 10 },
   colorDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
   },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
+  hint: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    marginTop: 20, padding: 12,
+    backgroundColor: Colors.borderLight, borderRadius: 10,
+  },
+  hintText: { flex: 1, fontSize: 12, color: Colors.textTertiary, lineHeight: 18 },
   saveBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 40,
+    borderRadius: 14, padding: 16,
+    alignItems: 'center', marginTop: 20, marginBottom: 40,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

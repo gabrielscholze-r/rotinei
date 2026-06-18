@@ -103,6 +103,40 @@ export interface TodoList {
   createdAt: string;
 }
 
+export interface KanbanBoard {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface KanbanColumn {
+  id: string;
+  boardId: string;
+  name: string;
+  order: number;
+  createdAt: string;
+}
+
+export interface KanbanCard {
+  id: string;
+  boardId: string;
+  columnId: string;
+  description: string;
+  text: string;
+  tagIds: string[];
+  order: number;
+  createdAt: string;
+}
+
+export interface KanbanTag {
+  id: string;
+  boardId: string;
+  name: string;
+  color: string;
+}
+
 export interface Note {
   id: string;
   title: string;
