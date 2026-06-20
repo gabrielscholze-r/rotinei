@@ -1,22 +1,18 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors } from '../../../constants/colors';
-import { Expense } from '../../../lib/types';
-import { currentPeriodKey, isInPeriod } from '../../../lib/billing';
+import { Expense, ExpenseSection } from '../../../lib/types';
+import { isExpenseInCurrentPeriod } from '../../../lib/billing';
 
 interface Props {
   expenses: Expense[];
   cycleDay: number;
+  sections: ExpenseSection[];
 }
 
-export function ExpenseSummaryWidget({ expenses, cycleDay }: Props) {
+export function ExpenseSummaryWidget({ expenses, cycleDay, sections }: Props) {
   const router = useRouter();
-  const periodKey = currentPeriodKey(cycleDay);
-  const periodExpenses = expenses.filter((e) =>
-    e.billingPeriodKey
-      ? e.billingPeriodKey === periodKey
-      : isInPeriod(e.date, periodKey, cycleDay)
-  );
+  const periodExpenses = expenses.filter((e) => isExpenseInCurrentPeriod(e, sections, cycleDay));
   const total = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (

@@ -7,9 +7,9 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getItem, KEYS } from '../../lib/storage';
-import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, KanbanBoard, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
+import { Routine, RoutineLog, TodoList, Note, Expense, Goal, CustomCategory, KanbanBoard, ExpenseSection, CATEGORY_ICONS, CATEGORY_LABELS } from '../../lib/types';
 import { isRoutineForToday, isRoutineCompletedToday } from '../../lib/routines';
-import { currentPeriodKey, isInPeriod } from '../../lib/billing';
+import { isExpenseInCurrentPeriod } from '../../lib/billing';
 import { stripHtml } from '../../lib/textFormatting';
 
 export default function MenuScreen() {
@@ -24,11 +24,12 @@ export default function MenuScreen() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [boards, setBoards] = useState<KanbanBoard[]>([]);
+  const [sections, setSections] = useState<ExpenseSection[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [rts, logs, todos, nts, exps, day, gls, cats, bds] = await Promise.all([
+        const [rts, logs, todos, nts, exps, day, gls, cats, bds, secs] = await Promise.all([
           getItem<Routine[]>(KEYS.ROUTINES),
           getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
           getItem<TodoList[]>(KEYS.TODO_LISTS),
@@ -38,6 +39,7 @@ export default function MenuScreen() {
           getItem<Goal[]>(KEYS.GOALS),
           getItem<CustomCategory[]>(KEYS.CUSTOM_CATEGORIES),
           getItem<KanbanBoard[]>(KEYS.KANBAN_BOARDS),
+          getItem<ExpenseSection[]>(KEYS.EXPENSE_SECTIONS),
         ]);
         setRoutines(rts ?? []);
         setRoutineLogs(logs ?? []);
@@ -48,19 +50,15 @@ export default function MenuScreen() {
         setGoals(gls ?? []);
         setCustomCategories(cats ?? []);
         setBoards(bds ?? []);
+        setSections(secs ?? []);
       }
       load();
     }, [])
   );
 
   const now = new Date();
-  const activePeriodKey = currentPeriodKey(cycleDay);
   const monthExpenses = expenses
-    .filter((e) =>
-      e.billingPeriodKey
-        ? e.billingPeriodKey === activePeriodKey
-        : isInPeriod(e.date, activePeriodKey, cycleDay)
-    )
+    .filter((e) => isExpenseInCurrentPeriod(e, sections, cycleDay))
     .reduce((sum, e) => sum + e.amount, 0);
 
   const todayRoutines = routines.filter(isRoutineForToday);
@@ -71,11 +69,7 @@ export default function MenuScreen() {
   const sortedNotes = [...notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   const recentExpenses = expenses
-    .filter((e) =>
-      e.billingPeriodKey
-        ? e.billingPeriodKey === activePeriodKey
-        : isInPeriod(e.date, activePeriodKey, cycleDay)
-    )
+    .filter((e) => isExpenseInCurrentPeriod(e, sections, cycleDay))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
 

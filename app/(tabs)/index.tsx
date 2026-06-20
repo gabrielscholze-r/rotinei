@@ -16,7 +16,7 @@ import { WidgetPickerModal } from '../../components/home/WidgetPickerModal';
 import { FeedbackModal } from '../../components/feedback/FeedbackModal';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
-  Routine, RoutineLog, TodoList, Note, Expense, Goal,
+  Routine, RoutineLog, TodoList, Note, Expense, ExpenseSection, Goal,
   HomeWidget,
 } from '../../lib/types';
 
@@ -46,11 +46,12 @@ export default function HomeScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cycleDay, setCycleDay] = useState<number>(1);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [expenseSections, setExpenseSections] = useState<ExpenseSection[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       async function load() {
-        const [saved, rts, logs, todos, nts, exps, day, gls] = await Promise.all([
+        const [saved, rts, logs, todos, nts, exps, day, gls, secs] = await Promise.all([
           getItem<HomeWidget[]>(KEYS.HOME_WIDGETS),
           getItem<Routine[]>(KEYS.ROUTINES),
           getItem<RoutineLog[]>(KEYS.ROUTINE_LOGS),
@@ -59,6 +60,7 @@ export default function HomeScreen() {
           getItem<Expense[]>(KEYS.EXPENSES),
           getItem<number>(KEYS.BILLING_CYCLE_DAY),
           getItem<Goal[]>(KEYS.GOALS),
+          getItem<ExpenseSection[]>(KEYS.EXPENSE_SECTIONS),
         ]);
         setWidgets(saved ?? DEFAULT_WIDGETS);
         setRoutines(rts ?? []);
@@ -68,6 +70,7 @@ export default function HomeScreen() {
         setExpenses(exps ?? []);
         setCycleDay(day ?? 1);
         setGoals(gls ?? []);
+        setExpenseSections(secs ?? []);
       }
       load();
     }, [])
@@ -174,6 +177,7 @@ export default function HomeScreen() {
             goals={goals}
             expenses={expenses}
             cycleDay={cycleDay}
+            expenseSections={expenseSections}
           />
         )}
 

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { Goal, HomeWidget, Note, Routine, RoutineLog, TodoList, Expense, WidgetSize } from '../../lib/types';
+import { Goal, HomeWidget, Note, Routine, RoutineLog, TodoList, Expense, ExpenseSection, WidgetSize } from '../../lib/types';
 import { isRoutineCompletedToday } from '../../lib/routines';
 import { ExpenseSummaryWidget } from './widgets/ExpenseSummaryWidget';
 import { GoalWidget } from './widgets/GoalWidget';
@@ -36,6 +36,7 @@ interface Props {
   goals: Goal[];
   expenses: Expense[];
   cycleDay: number;
+  expenseSections: ExpenseSection[];
 }
 
 export function DraggableWidgetList({
@@ -51,6 +52,7 @@ export function DraggableWidgetList({
   goals,
   expenses,
   cycleDay,
+  expenseSections,
 }: Props) {
   const [localWidgets, setLocalWidgets] = useState(widgets);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export function DraggableWidgetList({
         return <GoalWidget goal={goal} size={widget.size} />;
       }
       case 'expense_summary':
-        return <ExpenseSummaryWidget expenses={expenses} cycleDay={cycleDay} />;
+        return <ExpenseSummaryWidget expenses={expenses} cycleDay={cycleDay} sections={expenseSections} />;
       default:
         return null;
     }

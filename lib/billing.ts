@@ -39,6 +39,18 @@ export function isInPeriod(isoDate: string, key: string, cycleDay: number): bool
   return d >= start && d < end;
 }
 
+export function isExpenseInCurrentPeriod(
+  expense: { date: string; billingPeriodKey?: string; sectionId?: string },
+  sections: { id: string; closingDay?: number }[],
+  cycleDay: number
+): boolean {
+  const effectiveCycleDay = sections.find((s) => s.id === expense.sectionId)?.closingDay ?? cycleDay;
+  const activePeriodKey = currentPeriodKey(effectiveCycleDay);
+  return expense.billingPeriodKey
+    ? expense.billingPeriodKey === activePeriodKey
+    : isInPeriod(expense.date, activePeriodKey, effectiveCycleDay);
+}
+
 export function periodLabel(key: string, cycleDay: number): string {
   const start = parsePeriodKey(key);
   if (cycleDay === 1) {

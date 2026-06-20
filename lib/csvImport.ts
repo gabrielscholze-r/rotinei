@@ -1,5 +1,5 @@
 import { Expense, ExpenseCategory } from './types';
-import { getPeriodStart, periodKey, isInPeriod } from './billing';
+import { getPeriodStart, periodKey, prevPeriodKey, isInPeriod } from './billing';
 
 export interface ImportRow {
   date: string;       // ISO date
@@ -209,15 +209,13 @@ export function parseNubankCSV(content: string, closingDay?: number, invoiceClos
   }
 
   // Nubank format
-  // Derive invoice period key from closing date (e.g. Nubank_2026-06-13.csv → period "2026-05-13")
+  // Derive invoice period key from closing date, anchored on the section's
+  // closing day so it matches the same period keys used by the detail screen.
+  // Falls back to the filename's day-of-month if no closing day is configured.
   let nubankPeriodKey: string | undefined;
   if (invoiceClosingDate) {
-    const ps = new Date(
-      invoiceClosingDate.getFullYear(),
-      invoiceClosingDate.getMonth() - 1,
-      invoiceClosingDate.getDate()
-    );
-    nubankPeriodKey = `${ps.getFullYear()}-${String(ps.getMonth() + 1).padStart(2, '0')}-${String(ps.getDate()).padStart(2, '0')}`;
+    const cycleDay = closingDay ?? invoiceClosingDate.getDate();
+    nubankPeriodKey = prevPeriodKey(periodKey(invoiceClosingDate, cycleDay), cycleDay);
   }
 
   for (let i = 1; i < lines.length; i++) {
