@@ -251,13 +251,11 @@ export interface FeedbackPayload {
 export type FeedbackScreen =
   | 'Home'
   | 'Menu'
-  | 'Login'
-  | 'Perfil'
   | 'Rotinas'
   | 'Notas'
   | 'Listas'
   | 'Gastos'
-  | 'Configurações'
+  | 'Quadros'
   | 'Outro';
 
 export const FEEDBACK_SCREENS: FeedbackScreen[] = [
@@ -267,9 +265,7 @@ export const FEEDBACK_SCREENS: FeedbackScreen[] = [
   'Notas',
   'Listas',
   'Gastos',
-  'Login',
-  'Perfil',
-  'Configurações',
+  'Quadros',
   'Outro',
 ];
 
