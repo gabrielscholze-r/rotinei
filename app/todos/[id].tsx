@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { TodoList, TodoItem, TodoGroup } from '../../lib/types';
 import { CustomTabBar } from '../../components/CustomTabBar';
@@ -16,6 +17,8 @@ const ITEM_GAP = 8;
 const TOPIC_GAP = 10;
 
 export default function TodoListScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -719,7 +722,8 @@ export default function TodoListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -839,4 +843,5 @@ const styles = StyleSheet.create({
   },
   saveBtn: { borderRadius: 14, padding: 16, alignItems: 'center' },
   saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-});
+  });
+}

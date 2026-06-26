@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { registerBackgroundTask, rescheduleAllNotifications, cleanupFiredOnceRoutines } from '../lib/backgroundTask';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
 
 LogBox.ignoreLogs([
   'expo-notifications: Android Push notifications',
@@ -51,9 +52,20 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }} />
+        <ThemeProvider>
+          <RootContent />
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function RootContent() {
+  const { mode } = useTheme();
+  return (
+    <>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false }} />
+    </>
   );
 }

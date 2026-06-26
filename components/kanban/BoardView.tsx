@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { KanbanBoard, KanbanColumn, KanbanCard, KanbanTag } from '../../lib/types';
 import { CustomTabBar } from '../CustomTabBar';
@@ -27,6 +28,8 @@ interface Props {
 }
 
 export function BoardView({ board, columns: initialColumns }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
 
   const [columns, setColumns] = useState<KanbanColumn[]>(
@@ -794,7 +797,8 @@ export function BoardView({ board, columns: initialColumns }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -912,4 +916,5 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 16,
   },
   tagPreviewText: { fontSize: 14, fontWeight: '700' },
-});
+  });
+}

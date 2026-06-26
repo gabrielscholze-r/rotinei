@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Goal, HomeWidget, Note, Routine, TodoList, WidgetSize, WidgetType } from '../../lib/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -93,6 +94,8 @@ interface Props {
 
 export function WidgetPickerModal({ visible, onClose, onAdd, routines, todoLists, notes, goals }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<TypeOption | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | undefined>(undefined);
@@ -328,7 +331,8 @@ export function WidgetPickerModal({ visible, onClose, onAdd, routines, todoLists
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -459,4 +463,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-});
+  });
+}

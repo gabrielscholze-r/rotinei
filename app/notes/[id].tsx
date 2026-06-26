@@ -7,11 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RichText, Toolbar, useEditorBridge } from '@10play/tentap-editor';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note } from '../../lib/types';
 
 export default function NoteDetailScreen() {
+  const { colors: Colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [note, setNote] = useState<Note | null>(null);
   const [allNotes, setAllNotes] = useState<Note[]>([]);
@@ -35,6 +37,8 @@ export default function NoteDetailScreen() {
 }
 
 function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
   const [title, setTitle] = useState(note.title);
   const [changed, setChanged] = useState(false);
@@ -138,7 +142,8 @@ function NoteEditorView({ note, allNotes }: { note: Note; allNotes: Note[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -164,4 +169,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 8,
   },
-});
+  });
+}

@@ -7,7 +7,8 @@ import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
-import { Colors } from '../../constants/colors';
+import { Colors, ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Routine, RoutineLog, RoutineRepeatMode } from '../../lib/types';
 import {
@@ -136,6 +137,8 @@ async function cancelRoutineNotifications(ids: string[]) {
 }
 
 export default function RoutinesScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -541,7 +544,8 @@ export default function RoutinesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
@@ -726,4 +730,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioFill: { width: 9, height: 9, borderRadius: 5 },
-});
+  });
+}

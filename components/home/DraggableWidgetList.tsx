@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Goal, HomeWidget, Note, Routine, RoutineLog, TodoList, Expense, ExpenseSection, WidgetSize } from '../../lib/types';
 import { isRoutineCompletedToday } from '../../lib/routines';
 import { ExpenseSummaryWidget } from './widgets/ExpenseSummaryWidget';
@@ -54,6 +55,8 @@ export function DraggableWidgetList({
   cycleDay,
   expenseSections,
 }: Props) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const [localWidgets, setLocalWidgets] = useState(widgets);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const localWidgetsRef = useRef(widgets);
@@ -248,6 +251,8 @@ export function DraggableWidgetList({
 }
 
 function MissingWidget({ label }: { label: string }) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   return (
     <View style={styles.missingWidget}>
       <Text style={styles.missingText}>{label}</Text>
@@ -255,7 +260,8 @@ function MissingWidget({ label }: { label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -320,4 +326,5 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   missingText: { fontSize: 13, color: Colors.textTertiary },
-});
+  });
+}

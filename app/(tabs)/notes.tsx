@@ -5,7 +5,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useEffect } from 'react';
-import { Colors } from '../../constants/colors';
+import { Colors, ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Note, PrivateNote, NoteGroup } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
@@ -87,6 +88,8 @@ const EDITOR_THEME = {
 export default function NotesScreen() {
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const insets = useSafeAreaInsets();
   const tabBarHeight = 72 + insets.bottom;
 
@@ -800,7 +803,8 @@ export default function NotesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -947,4 +951,5 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
   },
   colorDotSelected: { borderWidth: 3, borderColor: Colors.text },
-});
+  });
+}
