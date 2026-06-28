@@ -6,16 +6,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { TodoList, TodoGroup } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-const LIST_COLORS = Colors.listColors;
 const LIST_ICONS = ['🛒', '🏠', '💼', '🏃', '📚', '🎯', '🍔', '💊', '🎁', '✈️', '🐾', '🌿'];
 
 export default function TodosScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
+  const LIST_COLORS = Colors.listColors;
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const [lists, setLists] = useState<TodoList[]>([]);
@@ -191,7 +194,8 @@ export default function TodosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
@@ -282,4 +286,5 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-});
+  });
+}

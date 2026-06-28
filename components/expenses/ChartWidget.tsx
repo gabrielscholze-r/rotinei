@@ -5,7 +5,8 @@ import { ExpenseChart, Expense, ExpenseSection, CustomCategory } from '../../lib
 import { isInPeriod, periodLabel } from '../../lib/billing';
 import { getCategoryLabel, getCategoryColor, getCategoryIcon } from '../../lib/categoryUtils';
 import { PieChart, PieSlice } from './PieChart';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -84,6 +85,8 @@ function buildSlices(
 }
 
 export function ChartWidget({ chart, expenses, sections: _sections, customCategories, cycleDay, onDelete }: ChartWidgetProps) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const [minimized, setMinimized] = useState(false);
   let filtered = expenses;
 
@@ -141,7 +144,8 @@ export function ChartWidget({ chart, expenses, sections: _sections, customCatego
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   card: {
     width: SCREEN_WIDTH - 48,
     backgroundColor: '#FFFFFF',
@@ -188,4 +192,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94A3B8',
   },
-});
+  });
+}

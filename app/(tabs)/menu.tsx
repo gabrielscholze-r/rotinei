@@ -1,7 +1,8 @@
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,6 +14,8 @@ import { isExpenseInCurrentPeriod } from '../../lib/billing';
 import { stripHtml } from '../../lib/textFormatting';
 
 export default function MenuScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -346,7 +349,8 @@ export default function MenuScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: 20 },
   header: { marginBottom: 20 },
@@ -442,4 +446,5 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.textSecondary },
   emptyText: { fontSize: 14, color: Colors.textTertiary, textAlign: 'center' },
-});
+  });
+}

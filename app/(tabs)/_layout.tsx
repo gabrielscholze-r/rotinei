@@ -18,6 +18,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="notes" options={{ title: 'Notas' }} />
         <Tabs.Screen name="expenses" options={{ title: 'Gastos' }} />
         <Tabs.Screen name="kanban" options={{ title: 'Quadros' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Configurações' }} />
       </Tabs>
       <CustomTabBar />
     </View>

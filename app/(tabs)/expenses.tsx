@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Expense, ExpenseCategory, CustomCategory, Goal, GoalTransaction,
@@ -171,6 +172,8 @@ const DEFAULT_RECURRING_FORM: RecurringForm = {
 };
 
 export default function ExpensesScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
   const { tab, from } = useLocalSearchParams<{ tab?: string; goalId?: string; from?: string }>();
   const [mainTab, setMainTab] = useState<'gastos' | 'metas'>('gastos');
@@ -1810,7 +1813,8 @@ export default function ExpensesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
@@ -2318,4 +2322,5 @@ const styles = StyleSheet.create({
   },
   sectionName: { fontSize: 17, fontWeight: '700', color: Colors.text },
   sectionMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 3 },
-});
+  });
+}

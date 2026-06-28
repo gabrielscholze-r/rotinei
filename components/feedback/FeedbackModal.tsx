@@ -13,7 +13,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { formatFeedbackDescription, submitFeedback } from '../../lib/feedbackService';
 import { FeedbackScreen, FEEDBACK_SCREENS } from '../../lib/types';
 
@@ -30,6 +31,8 @@ interface FormErrors {
 
 export function FeedbackModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
 
   const [title, setTitle] = useState('');
   const [screen, setScreen] = useState<FeedbackScreen | null>(null);
@@ -265,7 +268,8 @@ export function FeedbackModal({ visible, onClose }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   flex: { flex: 1 },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {
@@ -442,4 +446,5 @@ const styles = StyleSheet.create({
   },
   screenOptionText: { fontSize: 15, fontWeight: '500', color: Colors.text },
   screenOptionTextActive: { color: Colors.primary, fontWeight: '600' },
-});
+  });
+}

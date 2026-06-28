@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useCallback } from 'react';
-import { Colors } from '../../constants/colors';
+import { Colors, ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { KanbanBoard, KanbanColumn, KanbanCard, KanbanTag } from '../../lib/types';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +17,8 @@ const BOARD_COLORS = Colors.listColors;
 const BOARD_ICONS = ['📋', '🎯', '💼', '🚀', '🏗️', '🎨', '📦', '🔧', '⚡', '🌟', '🏆', '📊'];
 
 export default function KanbanScreen() {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const [boards, setBoards] = useState<KanbanBoard[]>([]);
@@ -209,7 +212,8 @@ export default function KanbanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
@@ -288,4 +292,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 20, marginBottom: 40,
   },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-});
+  });
+}

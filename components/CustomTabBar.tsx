@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -35,6 +35,8 @@ export function CustomTabBar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
 
   const isActive = (match: string) => {
     if (match === '/(tabs)') {
@@ -70,7 +72,8 @@ export function CustomTabBar() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: {
     position: 'absolute',
     bottom: 0,
@@ -105,4 +108,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-});
+  });
+}

@@ -35,4 +35,5 @@ export const KEYS = {
   KANBAN_BOARDS: 'kanban_boards',
   KANBAN_COLUMNS: 'kanban_columns',
   KANBAN_CARDS: 'kanban_cards',
+  THEME_MODE: 'theme_mode',
 };

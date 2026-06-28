@@ -15,7 +15,8 @@ import {
 } from '../../lib/billing';
 import { getCategoryLabel, getCategoryColor, getCategoryIcon } from '../../lib/categoryUtils';
 import { PieChart, PieSlice } from './PieChart';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -115,6 +116,8 @@ function buildPreviewSlices(
 export function CreateChartModal({
   visible, onClose, onSave, sections, cycleDay, expenses, customCategories,
 }: CreateChartModalProps) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const now = new Date();
   const [name, setName] = useState('');
   const [periodType, setPeriodType] = useState<ChartPeriodType>('billing_period');
@@ -379,7 +382,8 @@ export function CreateChartModal({
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -620,4 +624,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
   },
-});
+  });
+}

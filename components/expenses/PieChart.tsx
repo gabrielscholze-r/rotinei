@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Svg, Path, G, Text as SvgText } from 'react-native-svg';
-import { Colors } from '../../constants/colors';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface PieSlice {
   key: string;
@@ -48,6 +49,8 @@ function arcPath(
 }
 
 export function PieChart({ slices, size = 200, totalLabel }: PieChartProps) {
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const cx = size / 2;
   const cy = size / 2;
   const outerR = size / 2 - 4;
@@ -125,7 +128,8 @@ export function PieChart({ slices, size = 200, totalLabel }: PieChartProps) {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: {
     alignItems: 'center',
     gap: 12,
@@ -175,4 +179,5 @@ const styles = StyleSheet.create({
     width: 80,
     textAlign: 'right',
   },
-});
+  });
+}

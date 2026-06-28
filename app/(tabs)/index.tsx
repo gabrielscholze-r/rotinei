@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { useRouter } from 'expo-router';
+import { ColorPalette } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { DraggableWidgetList } from '../../components/home/DraggableWidgetList';
 import { WidgetPickerModal } from '../../components/home/WidgetPickerModal';
-import { FeedbackModal } from '../../components/feedback/FeedbackModal';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import {
   Routine, RoutineLog, TodoList, Note, Expense, ExpenseSection, Goal,
@@ -30,6 +31,9 @@ const DEFAULT_WIDGETS: HomeWidget[] = [
 ];
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
   const insets = useSafeAreaInsets();
   const tabBarHeight = 72 + insets.bottom;
 
@@ -37,7 +41,6 @@ export default function HomeScreen() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
@@ -123,35 +126,28 @@ export default function HomeScreen() {
               })}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[styles.editBtn, isEditMode && styles.editBtnActive]}
-            onPress={() => setIsEditMode((v) => !v)}
-          >
-            <Ionicons
-              name={isEditMode ? 'checkmark' : 'pencil'}
-              size={18}
-              color={isEditMode ? '#fff' : Colors.primary}
-            />
-            <Text style={[styles.editBtnText, isEditMode && styles.editBtnTextActive]}>
-              {isEditMode ? 'Concluir' : 'Editar'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.settingsBtn}
+              onPress={() => router.push('/(tabs)/settings' as any)}
+            >
+              <Ionicons name="settings-outline" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.editBtn, isEditMode && styles.editBtnActive]}
+              onPress={() => setIsEditMode((v) => !v)}
+            >
+              <Ionicons
+                name={isEditMode ? 'checkmark' : 'pencil'}
+                size={18}
+                color={isEditMode ? '#fff' : Colors.primary}
+              />
+              <Text style={[styles.editBtnText, isEditMode && styles.editBtnTextActive]}>
+                {isEditMode ? 'Concluir' : 'Editar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.reportBtn}
-          onPress={() => setShowFeedback(true)}
-          activeOpacity={0.85}
-        >
-          <View style={styles.reportIconWrap}>
-            <Ionicons name="warning-outline" size={20} color={Colors.warning} />
-          </View>
-          <View style={styles.reportContent}>
-            <Text style={styles.reportTitle}>Reportar problema</Text>
-            <Text style={styles.reportSub}>Encontrou algo errado? Nos avise.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-        </TouchableOpacity>
 
         {widgets.length === 0 && !isEditMode ? (
           <View style={styles.emptyState}>
@@ -202,16 +198,12 @@ export default function HomeScreen() {
         notes={notes}
         goals={goals}
       />
-
-      <FeedbackModal
-        visible={showFeedback}
-        onClose={() => setShowFeedback(false)}
-      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: 20 },
   header: {
@@ -222,6 +214,17 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 26, fontWeight: '700', color: Colors.text },
   date: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  settingsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,28 +242,6 @@ const styles = StyleSheet.create({
   },
   editBtnText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
   editBtnTextActive: { color: '#fff' },
-  reportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Colors.card,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.warningLight,
-  },
-  reportIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: Colors.warningLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reportContent: { flex: 1 },
-  reportTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  reportSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -294,4 +275,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryLighter,
   },
   addWidgetText: { fontSize: 15, fontWeight: '700', color: Colors.primary },
-});
+  });
+}
