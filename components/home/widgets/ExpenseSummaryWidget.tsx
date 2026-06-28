@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../../constants/colors';
+import { ColorPalette } from '../../../constants/colors';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { Expense, ExpenseSection } from '../../../lib/types';
 import { isExpenseInCurrentPeriod } from '../../../lib/billing';
 
@@ -12,6 +13,9 @@ interface Props {
 
 export function ExpenseSummaryWidget({ expenses, cycleDay, sections }: Props) {
   const router = useRouter();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
+
   const periodExpenses = expenses.filter((e) => isExpenseInCurrentPeriod(e, sections, cycleDay));
   const total = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -35,27 +39,29 @@ export function ExpenseSummaryWidget({ expenses, cycleDay, sections }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 4,
-    minHeight: 100,
-  },
-  iconRow: { flexDirection: 'row' },
-  iconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
-  total: { fontSize: 20, fontWeight: '800', color: Colors.danger },
-  sub: { fontSize: 12, color: Colors.textTertiary },
-});
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: Colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      gap: 4,
+      minHeight: 100,
+    },
+    iconRow: { flexDirection: 'row' },
+    iconContainer: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: Colors.dangerLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 4,
+    },
+    label: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' },
+    total: { fontSize: 20, fontWeight: '800', color: Colors.danger },
+    sub: { fontSize: 12, color: Colors.textTertiary },
+  });
+}

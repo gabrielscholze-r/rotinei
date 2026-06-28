@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../../constants/colors';
-import { Routine } from '../../../lib/types';
-import { WidgetSize } from '../../../lib/types';
+import { ColorPalette } from '../../../constants/colors';
+import { useTheme } from '../../../contexts/ThemeContext';
+import { Routine, WidgetSize } from '../../../lib/types';
 
 interface Props {
   routine: Routine;
@@ -12,6 +12,9 @@ interface Props {
 
 export function RoutineWidget({ routine, isCompleted, size }: Props) {
   const router = useRouter();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
+
   const isSmall = size === 'small';
 
   return (
@@ -39,32 +42,34 @@ export function RoutineWidget({ routine, isCompleted, size }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-    minHeight: 100,
-  },
-  smallCard: {
-    padding: 14,
-    minHeight: 90,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  emoji: { fontSize: 26 },
-  doneBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneBadgeText: { fontSize: 13, fontWeight: '700' },
-  name: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  time: { fontSize: 13, fontWeight: '600' },
-  status: { fontSize: 12, color: Colors.textSecondary },
-});
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
+    card: {
+      borderRadius: 16,
+      padding: 16,
+      gap: 6,
+      minHeight: 100,
+    },
+    smallCard: {
+      padding: 14,
+      minHeight: 90,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    emoji: { fontSize: 26 },
+    doneBadge: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    doneBadgeText: { fontSize: 13, fontWeight: '700' },
+    name: { fontSize: 14, fontWeight: '700', color: Colors.text },
+    time: { fontSize: 13, fontWeight: '600' },
+    status: { fontSize: 12, color: Colors.textSecondary },
+  });
+}

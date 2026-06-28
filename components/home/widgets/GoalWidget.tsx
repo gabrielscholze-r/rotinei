@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../../constants/colors';
+import { ColorPalette } from '../../../constants/colors';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { Goal, WidgetSize } from '../../../lib/types';
 
 interface Props {
@@ -10,6 +11,9 @@ interface Props {
 
 export function GoalWidget({ goal, size }: Props) {
   const router = useRouter();
+  const { colors: Colors } = useTheme();
+  const styles = createStyles(Colors);
+
   const progress = goal.targetAmount > 0
     ? Math.min(goal.currentAmount / goal.targetAmount, 1)
     : 0;
@@ -53,33 +57,35 @@ export function GoalWidget({ goal, size }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 8,
-    minHeight: 110,
-  },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  emojiContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deadline: { fontSize: 12, fontWeight: '600', color: Colors.warning },
-  name: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  amounts: { fontSize: 12, color: Colors.textSecondary },
-  progressTrack: {
-    height: 6,
-    backgroundColor: Colors.borderLight,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: { height: '100%', borderRadius: 3 },
-  percentage: { fontSize: 12, fontWeight: '700' },
-});
+function createStyles(Colors: ColorPalette) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: Colors.card,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: Colors.border,
+      gap: 8,
+      minHeight: 110,
+    },
+    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    emojiContainer: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deadline: { fontSize: 12, fontWeight: '600', color: Colors.warning },
+    name: { fontSize: 14, fontWeight: '700', color: Colors.text },
+    amounts: { fontSize: 12, color: Colors.textSecondary },
+    progressTrack: {
+      height: 6,
+      backgroundColor: Colors.borderLight,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    progressFill: { height: '100%', borderRadius: 3 },
+    percentage: { fontSize: 12, fontWeight: '700' },
+  });
+}

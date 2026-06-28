@@ -128,7 +128,7 @@ export default function MenuScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/todos', params: { from: 'menu' } } as any)}
             activeOpacity={0.8}
           >
-            <View style={[styles.quickIcon, { backgroundColor: '#EDE9FE' }]}>
+            <View style={[styles.quickIcon, { backgroundColor: '#7C3AED3d' }]}>
               <Ionicons name="checkbox" size={22} color="#7C3AED" />
             </View>
             <Text style={styles.quickLabel}>Listas</Text>
@@ -140,7 +140,7 @@ export default function MenuScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/notes', params: { from: 'menu' } } as any)}
             activeOpacity={0.8}
           >
-            <View style={[styles.quickIcon, { backgroundColor: '#D1FAE5' }]}>
+            <View style={[styles.quickIcon, { backgroundColor: '#0596693d' }]}>
               <Ionicons name="document-text" size={22} color="#059669" />
             </View>
             <Text style={styles.quickLabel}>Notas</Text>
@@ -152,7 +152,7 @@ export default function MenuScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/expenses', params: { from: 'menu' } } as any)}
             activeOpacity={0.8}
           >
-            <View style={[styles.quickIcon, { backgroundColor: '#FEE2E2' }]}>
+            <View style={[styles.quickIcon, { backgroundColor: '#DC26263d' }]}>
               <Ionicons name="wallet" size={22} color="#DC2626" />
             </View>
             <Text style={styles.quickLabel}>Gastos</Text>
@@ -166,7 +166,7 @@ export default function MenuScreen() {
             onPress={() => router.push({ pathname: '/(tabs)/kanban', params: { from: 'menu' } } as any)}
             activeOpacity={0.8}
           >
-            <View style={[styles.quickIcon, { backgroundColor: '#FFF7ED' }]}>
+            <View style={[styles.quickIcon, { backgroundColor: '#F973163d' }]}>
               <Ionicons name="grid" size={22} color="#F97316" />
             </View>
             <Text style={styles.quickLabel}>Quadros</Text>
