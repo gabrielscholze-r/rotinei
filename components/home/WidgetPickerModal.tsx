@@ -43,6 +43,14 @@ const TYPE_OPTIONS: TypeOption[] = [
     allowedSizes: ['small', 'medium'],
   },
   {
+    type: 'week_routine',
+    label: 'Histórico Semanal',
+    description: 'Grade 7 dias de uma rotina com streak',
+    icon: '📅',
+    hasEntity: true,
+    allowedSizes: ['small', 'medium'],
+  },
+  {
     type: 'todo_list',
     label: 'Lista de Tarefas',
     description: 'Progresso de uma lista',
@@ -141,7 +149,7 @@ export function WidgetPickerModal({ visible, onClose, onAdd, routines, todoLists
   function renderEntities() {
     if (!selectedType) return null;
 
-    if (selectedType.type === 'routine') {
+    if (selectedType.type === 'routine' || selectedType.type === 'week_routine') {
       return routines.map((r) => (
         <TouchableOpacity
           key={r.id}
