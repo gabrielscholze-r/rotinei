@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +20,8 @@ import { NoteWidget } from './widgets/NoteWidget';
 import { RoutineWidget } from './widgets/RoutineWidget';
 import { RoutinesTodayWidget } from './widgets/RoutinesTodayWidget';
 import { TodoListWidget } from './widgets/TodoListWidget';
+import { WeekOverviewWidget } from './widgets/WeekOverviewWidget';
+import { WidgetDetailModal } from './WidgetDetailModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CONTENT_WIDTH = SCREEN_WIDTH - 40;
@@ -59,6 +62,7 @@ export function DraggableWidgetList({
   const styles = createStyles(Colors);
   const [localWidgets, setLocalWidgets] = useState(widgets);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [expandedWidget, setExpandedWidget] = useState<HomeWidget | null>(null);
   const localWidgetsRef = useRef(widgets);
   const itemHeights = useRef<Record<string, number>>({});
   const wobbleAnim = useRef(new Animated.Value(0)).current;
@@ -163,7 +167,12 @@ export function DraggableWidgetList({
         const routine = routines.find((r) => r.id === widget.entityId);
         if (!routine) return <MissingWidget label="Rotina removida" />;
         const isCompleted = isRoutineCompletedToday(routine.id, routineLogs);
-        return <RoutineWidget routine={routine} isCompleted={isCompleted} size={widget.size} />;
+        return <RoutineWidget routine={routine} isCompleted={isCompleted} size={widget.size} logs={routineLogs} />;
+      }
+      case 'week_routine': {
+        const routine = routines.find((r) => r.id === widget.entityId);
+        if (!routine) return <MissingWidget label="Rotina removida" />;
+        return <WeekOverviewWidget routine={routine} logs={routineLogs} size={widget.size} />;
       }
       case 'todo_list': {
         const list = todoLists.find((l) => l.id === widget.entityId);
@@ -181,7 +190,7 @@ export function DraggableWidgetList({
         return <GoalWidget goal={goal} size={widget.size} />;
       }
       case 'expense_summary':
-        return <ExpenseSummaryWidget expenses={expenses} cycleDay={cycleDay} sections={expenseSections} />;
+        return <ExpenseSummaryWidget expenses={expenses} cycleDay={cycleDay} sections={expenseSections} size={widget.size} />;
       default:
         return null;
     }
@@ -225,7 +234,7 @@ export function DraggableWidgetList({
           >
             {renderWidgetContent(widget)}
 
-            {isEditMode && (
+            {isEditMode ? (
               <>
                 <TouchableOpacity
                   style={styles.deleteBtn}
@@ -242,10 +251,31 @@ export function DraggableWidgetList({
                   <Text style={styles.dragHandleIcon}>⠿</Text>
                 </View>
               </>
+            ) : (
+              <TouchableOpacity
+                style={styles.expandBtn}
+                onPress={() => setExpandedWidget(widget)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="chevron-expand-outline" size={14} color="#fff" />
+              </TouchableOpacity>
             )}
           </Animated.View>
         );
       })}
+
+      <WidgetDetailModal
+        widget={expandedWidget}
+        onClose={() => setExpandedWidget(null)}
+        routines={routines}
+        routineLogs={routineLogs}
+        todoLists={todoLists}
+        notes={notes}
+        goals={goals}
+        expenses={expenses}
+        expenseSections={expenseSections}
+        cycleDay={cycleDay}
+      />
     </View>
   );
 }
@@ -314,6 +344,23 @@ function createStyles(Colors: ColorPalette) {
     elevation: 4,
   },
   dragHandleIcon: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  expandBtn: {
+    position: 'absolute',
+    bottom: -8,
+    right: -8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   missingWidget: {
     backgroundColor: Colors.borderLight,
     borderRadius: 16,

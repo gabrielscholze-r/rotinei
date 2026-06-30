@@ -273,6 +273,7 @@ export type WidgetType =
   | 'routines_today'
   | 'expense_summary'
   | 'routine'
+  | 'week_routine'
   | 'todo_list'
   | 'note'
   | 'goal';
