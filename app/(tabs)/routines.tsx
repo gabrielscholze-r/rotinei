@@ -12,8 +12,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getItem, setItem, KEYS } from '../../lib/storage';
 import { Routine, RoutineLog, RoutineRepeatMode } from '../../lib/types';
 import {
-  getTodayKey, isRoutineForToday, isRoutineCompletedToday,
+  isRoutineForToday, isRoutineCompletedToday,
   formatRoutineDays, DAY_LABELS, nextOccurrenceDate,
+  withRoutineMarkedDone, withRoutineUnmarkedDone,
 } from '../../lib/routines';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -290,20 +291,11 @@ export default function RoutinesScreen() {
   }
 
   async function markDone(routineId: string) {
-    const today = getTodayKey();
-    if (isRoutineCompletedToday(routineId, logs)) return;
-    const log: RoutineLog = {
-      id: Date.now().toString(),
-      routineId,
-      date: today,
-      completedAt: new Date().toISOString(),
-    };
-    await saveLogs([log, ...logs]);
+    await saveLogs(withRoutineMarkedDone(routineId, logs));
   }
 
   async function unmarkDone(routineId: string) {
-    const today = getTodayKey();
-    await saveLogs(logs.filter((l) => !(l.routineId === routineId && l.date === today)));
+    await saveLogs(withRoutineUnmarkedDone(routineId, logs));
   }
 
   function toggleDay(day: number) {

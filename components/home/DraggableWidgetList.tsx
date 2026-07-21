@@ -41,6 +41,7 @@ interface Props {
   expenses: Expense[];
   cycleDay: number;
   expenseSections: ExpenseSection[];
+  onToggleRoutineDone?: (routineId: string) => void;
 }
 
 export function DraggableWidgetList({
@@ -57,6 +58,7 @@ export function DraggableWidgetList({
   expenses,
   cycleDay,
   expenseSections,
+  onToggleRoutineDone,
 }: Props) {
   const { colors: Colors } = useTheme();
   const styles = createStyles(Colors);
@@ -162,12 +164,26 @@ export function DraggableWidgetList({
   function renderWidgetContent(widget: HomeWidget) {
     switch (widget.type) {
       case 'routines_today':
-        return <RoutinesTodayWidget routines={routines} logs={routineLogs} />;
+        return (
+          <RoutinesTodayWidget
+            routines={routines}
+            logs={routineLogs}
+            onToggleDone={isEditMode ? undefined : onToggleRoutineDone}
+          />
+        );
       case 'routine': {
         const routine = routines.find((r) => r.id === widget.entityId);
         if (!routine) return <MissingWidget label="Rotina removida" />;
         const isCompleted = isRoutineCompletedToday(routine.id, routineLogs);
-        return <RoutineWidget routine={routine} isCompleted={isCompleted} size={widget.size} logs={routineLogs} />;
+        return (
+          <RoutineWidget
+            routine={routine}
+            isCompleted={isCompleted}
+            size={widget.size}
+            logs={routineLogs}
+            onToggleDone={isEditMode ? undefined : onToggleRoutineDone}
+          />
+        );
       }
       case 'week_routine': {
         const routine = routines.find((r) => r.id === widget.entityId);
@@ -275,6 +291,7 @@ export function DraggableWidgetList({
         expenses={expenses}
         expenseSections={expenseSections}
         cycleDay={cycleDay}
+        onToggleRoutineDone={onToggleRoutineDone}
       />
     </View>
   );

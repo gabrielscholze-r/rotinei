@@ -33,6 +33,7 @@ interface Props {
   expenses: Expense[];
   expenseSections: ExpenseSection[];
   cycleDay: number;
+  onToggleRoutineDone?: (routineId: string) => void;
 }
 
 const fmtCurrency = (v: number) =>
@@ -62,6 +63,7 @@ export function WidgetDetailModal({
   expenses,
   expenseSections,
   cycleDay,
+  onToggleRoutineDone,
 }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -99,6 +101,13 @@ export function WidgetDetailModal({
           ) : (
             today.map((r) => {
               const done = isRoutineCompletedToday(r.id, routineLogs);
+              const icon = (
+                <Ionicons
+                  name={done ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={done ? Colors.success : Colors.textTertiary}
+                />
+              );
               return (
                 <View key={r.id} style={styles.row}>
                   <Text style={styles.rowEmoji}>{r.icon}</Text>
@@ -106,11 +115,16 @@ export function WidgetDetailModal({
                     <Text style={styles.rowTitle}>{r.name}</Text>
                     <Text style={[styles.rowSub, { color: r.color }]}>{r.time}</Text>
                   </View>
-                  <Ionicons
-                    name={done ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={22}
-                    color={done ? Colors.success : Colors.textTertiary}
-                  />
+                  {onToggleRoutineDone ? (
+                    <TouchableOpacity
+                      onPress={() => onToggleRoutineDone(r.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {icon}
+                    </TouchableOpacity>
+                  ) : (
+                    icon
+                  )}
                 </View>
               );
             })
@@ -143,6 +157,24 @@ export function WidgetDetailModal({
               <View style={[styles.streakBadge, { backgroundColor: routine.color + '25' }]}>
                 <Text style={[styles.streakText, { color: routine.color }]}>🔥 {streak}</Text>
               </View>
+            )}
+            {onToggleRoutineDone && (
+              <TouchableOpacity
+                onPress={() => onToggleRoutineDone(routine.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={[
+                  styles.toggleDoneBtn,
+                  isCompleted
+                    ? { backgroundColor: routine.color }
+                    : { borderWidth: 1.5, borderColor: routine.color },
+                ]}
+              >
+                <Ionicons
+                  name={isCompleted ? 'checkmark' : 'checkmark-outline'}
+                  size={16}
+                  color={isCompleted ? '#fff' : routine.color}
+                />
+              </TouchableOpacity>
             )}
           </View>
           <Text style={styles.sectionLabel}>Últimos 14 dias</Text>
@@ -374,6 +406,13 @@ function createStyles(Colors: ColorPalette) {
     bigEmoji: { fontSize: 32 },
     streakBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
     streakText: { fontSize: 12, fontWeight: '700' },
+    toggleDoneBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     sectionLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, marginTop: 4 },
     dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     dayDot: { width: 20, height: 20, borderRadius: 10 },

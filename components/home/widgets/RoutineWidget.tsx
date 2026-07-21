@@ -9,6 +9,7 @@ interface Props {
   isCompleted: boolean;
   size: WidgetSize;
   logs: RoutineLog[];
+  onToggleDone?: (routineId: string) => void;
 }
 
 function calcStreak(routineId: string, logs: RoutineLog[]): number {
@@ -24,7 +25,7 @@ function calcStreak(routineId: string, logs: RoutineLog[]): number {
   return streak;
 }
 
-export function RoutineWidget({ routine, isCompleted, size, logs }: Props) {
+export function RoutineWidget({ routine, isCompleted, size, logs, onToggleDone }: Props) {
   const router = useRouter();
   const { colors: Colors } = useTheme();
   const styles = createStyles(Colors);
@@ -46,10 +47,25 @@ export function RoutineWidget({ routine, isCompleted, size, logs }: Props) {
               <Text style={[styles.streakText, { color: routine.color }]}>🔥 {streak}</Text>
             </View>
           )}
-          {isCompleted && (
-            <View style={[styles.doneBadge, { backgroundColor: routine.color + '30' }]}>
-              <Text style={[styles.doneBadgeText, { color: routine.color }]}>✓</Text>
-            </View>
+          {onToggleDone ? (
+            <TouchableOpacity
+              onPress={() => onToggleDone(routine.id)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={[
+                styles.doneBadge,
+                isCompleted
+                  ? { backgroundColor: routine.color + '30' }
+                  : { borderWidth: 1.5, borderColor: routine.color + '50' },
+              ]}
+            >
+              {isCompleted && <Text style={[styles.doneBadgeText, { color: routine.color }]}>✓</Text>}
+            </TouchableOpacity>
+          ) : (
+            isCompleted && (
+              <View style={[styles.doneBadge, { backgroundColor: routine.color + '30' }]}>
+                <Text style={[styles.doneBadgeText, { color: routine.color }]}>✓</Text>
+              </View>
+            )
           )}
         </View>
       </View>
