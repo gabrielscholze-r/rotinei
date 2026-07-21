@@ -16,6 +16,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { DraggableWidgetList } from '../../components/home/DraggableWidgetList';
 import { WidgetPickerModal } from '../../components/home/WidgetPickerModal';
 import { getItem, setItem, KEYS } from '../../lib/storage';
+import { toggleRoutineDone } from '../../lib/routines';
 import {
   Routine, RoutineLog, TodoList, Note, Expense, ExpenseSection, Goal,
   HomeWidget,
@@ -104,6 +105,12 @@ export default function HomeScreen() {
     saveWidgets([...widgets, newWidget]);
   }
 
+  async function handleToggleRoutineDone(routineId: string) {
+    const updated = toggleRoutineDone(routineId, routineLogs);
+    setRoutineLogs(updated);
+    await setItem(KEYS.ROUTINE_LOGS, updated);
+  }
+
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
@@ -174,6 +181,7 @@ export default function HomeScreen() {
             expenses={expenses}
             cycleDay={cycleDay}
             expenseSections={expenseSections}
+            onToggleRoutineDone={handleToggleRoutineDone}
           />
         )}
 

@@ -35,6 +35,28 @@ export function isRoutineCompletedToday(routineId: string, logs: RoutineLog[]): 
   return logs.some((l) => l.routineId === routineId && l.date === today);
 }
 
+export function withRoutineMarkedDone(routineId: string, logs: RoutineLog[]): RoutineLog[] {
+  if (isRoutineCompletedToday(routineId, logs)) return logs;
+  const log: RoutineLog = {
+    id: Date.now().toString(),
+    routineId,
+    date: getTodayKey(),
+    completedAt: new Date().toISOString(),
+  };
+  return [log, ...logs];
+}
+
+export function withRoutineUnmarkedDone(routineId: string, logs: RoutineLog[]): RoutineLog[] {
+  const today = getTodayKey();
+  return logs.filter((l) => !(l.routineId === routineId && l.date === today));
+}
+
+export function toggleRoutineDone(routineId: string, logs: RoutineLog[]): RoutineLog[] {
+  return isRoutineCompletedToday(routineId, logs)
+    ? withRoutineUnmarkedDone(routineId, logs)
+    : withRoutineMarkedDone(routineId, logs);
+}
+
 export function formatRoutineDays(days: number[], repeat?: RoutineRepeatMode): string {
   if (repeat === 'once') return 'Uma vez';
   if (days.length === 0 || days.length === 7) return 'Todo dia';

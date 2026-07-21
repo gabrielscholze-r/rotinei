@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ColorPalette } from '../../../constants/colors';
@@ -8,9 +9,10 @@ import { isRoutineForToday, isRoutineCompletedToday } from '../../../lib/routine
 interface Props {
   routines: Routine[];
   logs: RoutineLog[];
+  onToggleDone?: (routineId: string) => void;
 }
 
-export function RoutinesTodayWidget({ routines, logs }: Props) {
+export function RoutinesTodayWidget({ routines, logs, onToggleDone }: Props) {
   const router = useRouter();
   const { colors: Colors } = useTheme();
   const styles = createStyles(Colors);
@@ -64,6 +66,15 @@ export function RoutinesTodayWidget({ routines, logs }: Props) {
               <Text style={styles.emoji}>{r.icon}</Text>
               <Text style={styles.name} numberOfLines={1}>{r.name}</Text>
               <Text style={[styles.time, { color: r.color }]}>{r.time}</Text>
+              {onToggleDone && (
+                <TouchableOpacity
+                  onPress={() => onToggleDone(r.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.rowCheckBtn}
+                >
+                  <Ionicons name="ellipse-outline" size={18} color={r.color} />
+                </TouchableOpacity>
+              )}
             </View>
           ))}
           {pendingRoutines.length > 3 && (
@@ -131,6 +142,7 @@ function createStyles(Colors: ColorPalette) {
       paddingVertical: 3,
     },
     dot: { width: 6, height: 6, borderRadius: 3 },
+    rowCheckBtn: { padding: 2 },
     emoji: { fontSize: 16 },
     name: { flex: 1, fontSize: 14, fontWeight: '500', color: Colors.text },
     time: { fontSize: 13, fontWeight: '600' },
