@@ -19,6 +19,18 @@ export function nextOccurrenceDate(time: string): Date {
   return d;
 }
 
+// Próxima ocorrência futura para um dia da semana específico (0=Dom..6=Sáb) + horário "HH:MM".
+export function nextWeeklyOccurrence(time: string, weekday: number): Date {
+  const [h, m] = time.split(':').map(Number);
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(h, m, 0, 0);
+  let delta = (weekday - d.getDay() + 7) % 7;
+  if (delta === 0 && d <= now) delta = 7;
+  d.setDate(d.getDate() + delta);
+  return d;
+}
+
 export function isRoutineForToday(routine: Routine): boolean {
   if (!routine.active) return false;
   if ((routine.repeat ?? 'repeat') === 'once') {

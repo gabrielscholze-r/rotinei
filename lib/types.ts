@@ -31,6 +31,9 @@ export interface Routine {
   active: boolean;
   notificationIds: string[];
   createdAt: string;
+  isAlarm?: boolean; // Android: dispara como despertador (tela cheia, toca até desligar) via Notifee
+  alarmSound?: string; // chave do som (ex. 'classico' | 'digital' | 'suave')
+  snoozeMinutes?: number; // duração da soneca em minutos (default 5)
 }
 
 export interface RoutineLog {

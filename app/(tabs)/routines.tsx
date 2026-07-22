@@ -1,6 +1,6 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, TextInput, Alert, Platform,
+  Modal, TextInput, Alert, Platform, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FAB } from '../../components/FAB';
@@ -18,6 +18,10 @@ import {
 } from '../../lib/routines';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import {
+  scheduleRoutineAlarm, cancelRoutineAlarm,
+  ALARM_SOUNDS, DEFAULT_ALARM_SOUND, DEFAULT_SNOOZE_MINUTES,
+} from '../../lib/alarms';
 
 const ROUTINE_COLORS = Colors.medColors;
 
@@ -38,6 +42,8 @@ interface AddForm {
   days: number[];
   colorIndex: number;
   repeat: RoutineRepeatMode;
+  isAlarm: boolean;
+  alarmSound: string;
 }
 
 const DEFAULT_FORM: AddForm = {
@@ -49,6 +55,8 @@ const DEFAULT_FORM: AddForm = {
   days: [],
   colorIndex: 0,
   repeat: 'repeat',
+  isAlarm: false,
+  alarmSound: DEFAULT_ALARM_SOUND,
 };
 
 
@@ -195,6 +203,8 @@ export default function RoutinesScreen() {
       days: routine.days,
       colorIndex: colorIndex >= 0 ? colorIndex : 0,
       repeat: routine.repeat ?? 'repeat',
+      isAlarm: routine.isAlarm ?? false,
+      alarmSound: routine.alarmSound ?? DEFAULT_ALARM_SOUND,
     });
     setEditingRoutine(routine);
     setShowAdd(true);
@@ -219,16 +229,23 @@ export default function RoutinesScreen() {
       time,
       days: form.repeat === 'once' ? [] : form.days,
       repeat: form.repeat,
+      isAlarm: form.isAlarm,
+      alarmSound: form.alarmSound,
     };
-    const notificationIds = await scheduleRoutineNotifications(partial);
     const routine: Routine = {
       id: Date.now().toString(),
       ...partial,
+      snoozeMinutes: DEFAULT_SNOOZE_MINUTES,
       color: ROUTINE_COLORS[form.colorIndex],
       active: true,
-      notificationIds,
+      notificationIds: [],
       createdAt: new Date().toISOString(),
     };
+    if (routine.isAlarm && Platform.OS === 'android') {
+      await scheduleRoutineAlarm(routine);
+    } else {
+      routine.notificationIds = await scheduleRoutineNotifications(partial);
+    }
     await saveRoutines([routine, ...routines]);
     setShowAdd(false);
   }
@@ -253,15 +270,26 @@ export default function RoutinesScreen() {
       time,
       days: form.repeat === 'once' ? [] : form.days,
       repeat: form.repeat,
+      isAlarm: form.isAlarm,
+      alarmSound: form.alarmSound,
     };
+    // Cancela nos dois sistemas (o estado anterior pode ter sido alarme ou notificação normal).
     await cancelRoutineNotifications(editingRoutine.notificationIds);
-    const notificationIds = editingRoutine.active ? await scheduleRoutineNotifications(partial) : [];
+    await cancelRoutineAlarm(editingRoutine.id);
     const updated: Routine = {
       ...editingRoutine,
       ...partial,
+      snoozeMinutes: editingRoutine.snoozeMinutes ?? DEFAULT_SNOOZE_MINUTES,
       color: ROUTINE_COLORS[form.colorIndex],
-      notificationIds,
+      notificationIds: [],
     };
+    if (updated.active) {
+      if (updated.isAlarm && Platform.OS === 'android') {
+        await scheduleRoutineAlarm(updated);
+      } else {
+        updated.notificationIds = await scheduleRoutineNotifications(partial);
+      }
+    }
     await saveRoutines(routines.map((r) => r.id === editingRoutine.id ? updated : r));
     setEditingRoutine(null);
     setShowAdd(false);
@@ -274,6 +302,7 @@ export default function RoutinesScreen() {
         text: 'Remover', style: 'destructive',
         onPress: async () => {
           await cancelRoutineNotifications(routine.notificationIds);
+          await cancelRoutineAlarm(routine.id);
           await saveRoutines(routines.filter((r) => r.id !== routine.id));
         },
       },
@@ -283,9 +312,15 @@ export default function RoutinesScreen() {
   async function toggleActive(routine: Routine) {
     if (routine.active) {
       await cancelRoutineNotifications(routine.notificationIds);
+      await cancelRoutineAlarm(routine.id);
       await saveRoutines(routines.map((r) => r.id === routine.id ? { ...r, active: false, notificationIds: [] } : r));
     } else {
-      const notificationIds = await scheduleRoutineNotifications(routine);
+      let notificationIds: string[] = [];
+      if (routine.isAlarm && Platform.OS === 'android') {
+        await scheduleRoutineAlarm({ ...routine, active: true });
+      } else {
+        notificationIds = await scheduleRoutineNotifications(routine);
+      }
       await saveRoutines(routines.map((r) => r.id === routine.id ? { ...r, active: true, notificationIds } : r));
     }
   }
@@ -369,7 +404,12 @@ export default function RoutinesScreen() {
                 <Text style={{ fontSize: 22 }}>{routine.icon}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.routineName, !routine.active && styles.routineNameDone]}>{routine.name}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[styles.routineName, !routine.active && styles.routineNameDone]}>{routine.name}</Text>
+                  {routine.isAlarm && (
+                    <Ionicons name="alarm" size={15} color={routine.color} style={styles.alarmBadge} />
+                  )}
+                </View>
                 <Text style={styles.routineMeta}>{routine.time} · {formatRoutineDays(routine.days, routine.repeat ?? 'repeat')}</Text>
                 {routine.description ? (
                   <Text style={styles.routineDesc} numberOfLines={1}>{routine.description}</Text>
@@ -513,6 +553,54 @@ export default function RoutinesScreen() {
               </>
             )}
 
+            {Platform.OS === 'android' && (
+              <>
+                <Text style={styles.label}>Modo Alarme</Text>
+                <View style={styles.alarmRow}>
+                  <View style={{ flex: 1, marginRight: 12 }}>
+                    <Text style={styles.alarmTitle}>🔔 Despertador</Text>
+                    <Text style={styles.hintText}>Abre em tela cheia e toca até você desligar</Text>
+                  </View>
+                  <Switch
+                    value={form.isAlarm}
+                    onValueChange={(v) => setForm({ ...form, isAlarm: v })}
+                    trackColor={{ false: Colors.border, true: ROUTINE_COLORS[form.colorIndex] }}
+                    thumbColor="#fff"
+                  />
+                </View>
+                {form.isAlarm && (
+                  <>
+                    <Text style={styles.label}>Som do alarme</Text>
+                    <View style={styles.soundRow}>
+                      {ALARM_SOUNDS.map((s) => {
+                        const accentColor = ROUTINE_COLORS[form.colorIndex];
+                        const selected = form.alarmSound === s.key;
+                        return (
+                          <TouchableOpacity
+                            key={s.key}
+                            style={[
+                              styles.soundBtn,
+                              selected && { borderColor: accentColor, backgroundColor: accentColor + '15' },
+                            ]}
+                            onPress={() => setForm({ ...form, alarmSound: s.key })}
+                          >
+                            <Ionicons
+                              name="musical-notes"
+                              size={16}
+                              color={selected ? accentColor : Colors.textTertiary}
+                            />
+                            <Text style={[styles.soundText, selected && { color: Colors.text, fontWeight: '700' }]}>
+                              {s.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+              </>
+            )}
+
             <Text style={styles.label}>Cor</Text>
             <View style={styles.colorRow}>
               {ROUTINE_COLORS.map((c, i) => (
@@ -626,6 +714,31 @@ function createStyles(Colors: ColorPalette) {
   modalScroll: { padding: 20 },
   label: { fontSize: 14, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 14 },
   hintText: { fontSize: 12, color: Colors.textTertiary, marginBottom: 8, marginTop: -4 },
+  alarmRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  alarmTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  soundRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  soundBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
+  },
+  soundText: { fontSize: 14, color: Colors.textSecondary },
+  alarmBadge: { marginLeft: 6 },
   input: {
     backgroundColor: Colors.card,
     borderWidth: 1,

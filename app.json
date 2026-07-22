@@ -30,7 +30,11 @@
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.USE_EXACT_ALARM",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.VIBRATE",
+        "android.permission.FOREGROUND_SERVICE"
       ]
     },
     "web": {
@@ -43,7 +47,12 @@
         "expo-notifications",
         {
           "androidMode": "default",
-          "androidCollapsedTitle": "Rotinas"
+          "androidCollapsedTitle": "Rotinas",
+          "sounds": [
+            "./assets/sounds/alarm_classico.wav",
+            "./assets/sounds/alarm_digital.wav",
+            "./assets/sounds/alarm_suave.wav"
+          ]
         }
       ],
       [

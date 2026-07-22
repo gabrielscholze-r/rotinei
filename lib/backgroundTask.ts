@@ -65,6 +65,7 @@ export async function cleanupFiredOnceRoutines(): Promise<void> {
     const scheduledIds = new Set(scheduled.map((n) => n.identifier));
     const toDelete = routines.filter(
       (r) =>
+        !r.isAlarm &&
         (r.repeat ?? 'repeat') === 'once' &&
         r.notificationIds.length > 0 &&
         !r.notificationIds.some((id) => scheduledIds.has(id))
@@ -90,6 +91,7 @@ export async function rescheduleAllNotifications(): Promise<void> {
     let changed = false;
 
     for (const routine of activeRoutines) {
+      if (routine.isAlarm) continue; // alarmes são geridos pelo Notifee (persistem/reagendam sozinhos)
       if ((routine.repeat ?? 'repeat') === 'once') continue;
       const allScheduled =
         routine.notificationIds.length > 0 &&
